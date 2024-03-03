@@ -1,6 +1,7 @@
 #include "mge.hh"
 
 int main() {
-  mge::hello_world();
+  auto app = mge::Application();
+  app.run();
   return 0;
 }
