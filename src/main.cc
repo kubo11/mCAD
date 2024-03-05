@@ -1,7 +1,8 @@
-#include "mge.hh"
+#include "mcad_application.hh"
 
 int main() {
-  auto app = mge::Application();
+  auto app = MCadApplication();
   app.run();
+  app.terminate();
   return 0;
 }
