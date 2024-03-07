@@ -34,8 +34,7 @@ class EllipsoidLayer : public mge::Layer {
   mge::Camera m_camera;
 
   bool on_ellipsoid_modified(EllipsoidModifiedEvent& event);
-  bool on_raycaster_modified(
-      mge::RaycasterUpdateMaxPixelSizeExponentEvent& event);
+  bool on_raycaster_modified(mge::RaycasterAccuracyModifiedEvent& event);
   bool on_camera_angle_modified(mge::CameraAngleEvent& event);
   bool on_camera_position_modified(mge::CameraPositionEvent& event);
   bool on_camera_zoom(mge::CameraZoomEvent& event);

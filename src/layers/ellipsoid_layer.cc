@@ -14,7 +14,7 @@ void EllipsoidLayer::handle_event(mge::Event& event, float dt) {
   mge::Event::try_handler<EllipsoidModifiedEvent>(
       event, BIND_EVENT_HANDLER(EllipsoidLayer::on_ellipsoid_modified));
 
-  mge::Event::try_handler<mge::RaycasterUpdateMaxPixelSizeExponentEvent>(
+  mge::Event::try_handler<mge::RaycasterAccuracyModifiedEvent>(
       event, BIND_EVENT_HANDLER(EllipsoidLayer::on_raycaster_modified));
 
   mge::Event::try_handler<mge::CameraAngleEvent>(
@@ -34,7 +34,7 @@ bool EllipsoidLayer::on_ellipsoid_modified(EllipsoidModifiedEvent& event) {
 }
 
 bool EllipsoidLayer::on_raycaster_modified(
-    mge::RaycasterUpdateMaxPixelSizeExponentEvent& event) {
+    mge::RaycasterAccuracyModifiedEvent& event) {
   m_raycaster.set_max_pixel_size_exponent(event.get_max_pixel_size_exponent());
   m_raycaster.reset();
   return true;

@@ -63,7 +63,7 @@ void UILayer::update() {
   ImGui::Text("Other");
   if (ImGui::InputInt("accuracy", &m_accuracy, 1, 1)) {
     m_accuracy = std::clamp(m_accuracy, 0, 7);
-    auto event = mge::RaycasterUpdateMaxPixelSizeExponentEvent(m_accuracy);
+    auto event = mge::RaycasterAccuracyModifiedEvent(m_accuracy);
     m_send_event(event);
   };
 
