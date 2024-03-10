@@ -1,16 +1,12 @@
 #include "ui_layer.hh"
-#include "ellipsoid_layer.hh"
+#include "cad_layer.hh"
 
 UILayer::UILayer()
-    : m_a(0.5f),
-      m_b(1.0f),
-      m_c(1.5f),
-      m_color{1.0f, 1.0f, 0.0f},
-      m_ambient(0.1f),
-      m_diffuse(0.5f),
-      m_specular(0.5f),
-      m_shininess(0.5f),
-      m_accuracy(5) {}
+    : m_inner_radius(4.0f),
+      m_outer_radius(6.0f),
+      m_horizontal_density(8),
+      m_vertical_density(8),
+      m_color{1.0f, 1.0f, 0.0f} {}
 
 void UILayer::configure() {}
 
@@ -24,49 +20,46 @@ void UILayer::update() {
                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                    ImGuiWindowFlags_NoMove);
 
-  ImGui::Text("Ellipsoid");
-  if (ImGui::InputFloat("a", &m_a, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
+  ImGui::Text("Torus");
+  if (ImGui::InputFloat("inner radius", &m_inner_radius, 0.1f, 1.0f, "%.2f")) {
+    m_inner_radius = std::clamp(m_inner_radius, 0.0f, m_outer_radius);
+    auto event = TorusModifiedEvent(
+        m_inner_radius, m_outer_radius, m_horizontal_density,
+        m_vertical_density, glm::vec3{m_color[0], m_color[1], m_color[2]});
     m_send_event(event);
   }
-  if (ImGui::InputFloat("b", &m_b, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
+  if (ImGui::InputFloat("outer radius", &m_outer_radius, 0.1f, 1.0f, "%.2f")) {
+    m_outer_radius =
+        m_outer_radius >= m_inner_radius ? m_outer_radius : m_inner_radius;
+    auto event = TorusModifiedEvent(
+        m_inner_radius, m_outer_radius, m_horizontal_density,
+        m_vertical_density, glm::vec3{m_color[0], m_color[1], m_color[2]});
     m_send_event(event);
   }
-  if (ImGui::InputFloat("c", &m_c, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
+  if (ImGui::InputInt("horizontal density", &m_horizontal_density, 1, 1)) {
+    m_horizontal_density = std::clamp(m_horizontal_density, 3, 128);
+    auto event = TorusModifiedEvent(
+        m_inner_radius, m_outer_radius, m_horizontal_density,
+        m_vertical_density, glm::vec3{m_color[0], m_color[1], m_color[2]});
     m_send_event(event);
   }
+  if (ImGui::InputInt("vertical density", &m_vertical_density, 1, 1)) {
+    m_vertical_density = std::clamp(m_vertical_density, 3, 128);
+    auto event = TorusModifiedEvent(
+        m_inner_radius, m_outer_radius, m_horizontal_density,
+        m_vertical_density, glm::vec3{m_color[0], m_color[1], m_color[2]});
+    m_send_event(event);
+  };
   if (ImGui::ColorPicker3(
           "color", m_color,
           ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoAlpha)) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
-    m_send_event(event);
-  }
-  if (ImGui::InputFloat("ambient", &m_ambient, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
-    m_send_event(event);
-  }
-  if (ImGui::InputFloat("diffuse", &m_diffuse, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
-    m_send_event(event);
-  }
-  if (ImGui::InputFloat("specular", &m_specular, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
-    m_send_event(event);
-  }
-  if (ImGui::InputFloat("shininess", &m_shininess, 0.1f, 1.0f, "%.2f")) {
-    auto event = EllipsoidModifiedEvent(generate_ellipsoid());
+    auto event = TorusModifiedEvent(
+        m_inner_radius, m_outer_radius, m_horizontal_density,
+        m_vertical_density, glm::vec3{m_color[0], m_color[1], m_color[2]});
     m_send_event(event);
   }
 
   ImGui::Text("Other");
-  if (ImGui::InputInt("accuracy", &m_accuracy, 1, 1)) {
-    m_accuracy = std::clamp(m_accuracy, 0, 7);
-    auto event = mge::RaycasterAccuracyModifiedEvent(m_accuracy);
-    m_send_event(event);
-  };
-
   ImGuiIO& io = ImGui::GetIO();
   ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 

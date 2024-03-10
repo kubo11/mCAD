@@ -3,7 +3,7 @@
 
 #include "mge.hh"
 
-#include "../ellipsoid.hh"
+#include "../geometry/ellipsoid.hh"
 
 class EllipsoidModifiedEvent : public mge::Event {
  public:
