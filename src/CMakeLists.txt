@@ -6,7 +6,15 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE mge)
 
-add_custom_target(create_exec_link ALL
-                  COMMAND ${CMAKE_COMMAND} -E create_symlink ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME} ${BUILD_ROOT}/${PROJECT_NAME})
+if(WIN32)
+    set(BIN_NAME ${PROJECT_NAME}.exe)
+    set(BIN_PATH ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+else()
+    set(BIN_NAME ${PROJECT_NAME})
+    set(BIN_PATH ${CMAKE_CURRENT_BINARY_DIR})
+endif()
 
-add_dependencies(create_exec_link ${PROJECT_NAME})
+add_custom_target(copy_binary ALL
+                  COMMAND ${CMAKE_COMMAND} -E copy ${BIN_PATH}/${BIN_NAME} ${BUILD_ROOT}/${BIN_NAME})
+
+add_dependencies(copy_binary ${PROJECT_NAME})
