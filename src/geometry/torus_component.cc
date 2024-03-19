@@ -1,40 +1,42 @@
-#include "torus.hh"
+#include "torus_component.hh"
 
-void Torus::set_inner_radius(float inner_radius) {
-  if (inner_radius > 0.0f && inner_radius < m_outer_radius) {
-    m_inner_radius = inner_radius;
-    m_vertex_array->update_vertices(std::move(generate_geometry()));
-  }
-}
+unsigned int TorusComponent::s_new_id = 1;
 
-void Torus::set_outer_radius(float outer_radius) {
-  if (outer_radius > m_inner_radius) {
-    m_outer_radius = outer_radius;
-    m_vertex_array->update_vertices(std::move(generate_geometry()));
-  }
-}
+// void Torus::set_inner_radius(float inner_radius) {
+//   if (inner_radius > 0.0f && inner_radius < m_outer_radius) {
+//     m_inner_radius = inner_radius;
+//     m_vertex_array->update_vertices(std::move(generate_geometry()));
+//   }
+// }
 
-void Torus::set_horizontal_density(unsigned int horizontal_density) {
-  if (horizontal_density >= 3) {
-    m_horizontal_density = horizontal_density;
-    m_vertex_array->update_vertices(std::move(generate_geometry()));
-    auto indices = generate_wireframe_topology();
-    m_indices = indices.size();
-    m_vertex_array->update_indices(std::move(indices));
-  }
-}
+// void Torus::set_outer_radius(float outer_radius) {
+//   if (outer_radius > m_inner_radius) {
+//     m_outer_radius = outer_radius;
+//     m_vertex_array->update_vertices(std::move(generate_geometry()));
+//   }
+// }
 
-void Torus::set_vertical_density(unsigned int vertical_density) {
-  if (vertical_density >= 3) {
-    m_vertical_density = vertical_density;
-    m_vertex_array->update_vertices(std::move(generate_geometry()));
-    auto indices = generate_wireframe_topology();
-    m_indices = indices.size();
-    m_vertex_array->update_indices(std::move(indices));
-  }
-}
+// void Torus::set_horizontal_density(unsigned int horizontal_density) {
+//   if (horizontal_density >= 3) {
+//     m_horizontal_density = horizontal_density;
+//     m_vertex_array->update_vertices(std::move(generate_geometry()));
+//     auto indices = generate_wireframe_topology();
+//     m_indices_count = indices.size();
+//     m_vertex_array->update_indices(std::move(indices));
+//   }
+// }
 
-std::vector<GeometryVertex> Torus::generate_geometry() {
+// void Torus::set_vertical_density(unsigned int vertical_density) {
+//   if (vertical_density >= 3) {
+//     m_vertical_density = vertical_density;
+//     m_vertex_array->update_vertices(std::move(generate_geometry()));
+//     auto indices = generate_wireframe_topology();
+//     m_indices_count = indices.size();
+//     m_vertex_array->update_indices(std::move(indices));
+//   }
+// }
+
+std::vector<GeometryVertex> TorusComponent::generate_geometry() {
   std::vector<GeometryVertex> vertices(m_vertical_density *
                                        m_horizontal_density);
 
@@ -54,7 +56,9 @@ std::vector<GeometryVertex> Torus::generate_geometry() {
   return vertices;
 }
 
-std::vector<unsigned int> Torus::generate_wireframe_topology() {
+template <>
+std::vector<unsigned int>
+TorusComponent::generate_topology<mge::RenderMode::WIREFRAME>() {
   std::vector<unsigned int> indices(m_vertical_density * m_horizontal_density *
                                     4);
 
@@ -76,12 +80,14 @@ std::vector<unsigned int> Torus::generate_wireframe_topology() {
   return indices;
 }
 
-std::vector<unsigned int> Torus::generate_surface_topology() {
+template <>
+std::vector<unsigned int>
+TorusComponent::generate_topology<mge::RenderMode::SURFACE>() {
   std::vector<unsigned int> indices(m_vertical_density * m_horizontal_density *
                                     6);
 
-  for (int j = 1; j <= m_vertical_density; ++j) {
-    for (int i = 1; i <= m_horizontal_density; ++i) {
+  for (int j = 0; j < m_vertical_density; ++j) {
+    for (int i = 0; i < m_horizontal_density; ++i) {
       auto a = m_horizontal_density * j + i;
       auto b = m_horizontal_density * j + (i + 1) % m_horizontal_density;
       auto c = m_horizontal_density * ((j + 1) % m_vertical_density) +
