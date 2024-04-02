@@ -9,11 +9,11 @@ class AddEvent : public mge::Event {
   virtual inline const std::string name() const override { return "AddEvent"; }
 };
 
-class AnnounceNewEvent : public mge::Event {
+class AnnounceNewEntityEvent : public mge::Event {
  public:
-  AnnounceNewEvent(const std::string& tag) : m_tag(tag) {}
+  AnnounceNewEntityEvent(const std::string& tag) : m_tag(tag) {}
   virtual inline const std::string name() const override {
-    return "AnnounceNewEvent";
+    return "AnnounceNewEntityEvent";
   }
   inline const std::string& get_tag() const { return m_tag; }
 

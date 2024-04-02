@@ -86,8 +86,8 @@ bool InputLayer::on_mouse_button_pressed(mge::WindowMousePressedEvent& event) {
   switch (m_state) {
     case InputState::SELECT:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        QuerySelectedCursorEvent query_event(event.get_position());
-        m_send_event(query_event);
+        SelectEntityByPositionEvent select_event(event.get_position());
+        m_send_event(select_event);
       }
       break;
     case InputState::DELETE:

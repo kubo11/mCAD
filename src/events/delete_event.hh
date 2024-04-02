@@ -3,11 +3,11 @@
 
 #include "mge.hh"
 
-class DeleteTagEvent : public mge::Event {
+class DeleteEntityByTagEvent : public mge::Event {
  public:
-  DeleteTagEvent(const std::string& tag) : m_tag(tag) {}
+  DeleteEntityByTagEvent(const std::string& tag) : m_tag(tag) {}
   virtual inline const std::string name() const override {
-    return "DeleteTagEvent";
+    return "DeleteEntityByTagEvent";
   }
   inline const std::string& get_tag() const { return m_tag; }
 

@@ -3,27 +3,11 @@
 
 #include "mge.hh"
 
-class SelectEvent : public mge::Event {
+class SelectEntityByTagEvent : public mge::Event {
  public:
-  SelectEvent(std::optional<std::reference_wrapper<mge::Entity>> entity)
-      : m_selected(entity) {}
+  SelectEntityByTagEvent(const std::string& tag) : m_tag(tag) {}
   virtual inline const std::string name() const override {
-    return "SelectEvent";
-  }
-  inline std::optional<std::reference_wrapper<mge::Entity>> get_selected()
-      const {
-    return m_selected;
-  }
-
- protected:
-  std::optional<std::reference_wrapper<mge::Entity>> m_selected;
-};
-
-class QuerySelectedTagEvent : public mge::Event {
- public:
-  QuerySelectedTagEvent(const std::string& tag) : m_tag(tag) {}
-  virtual inline const std::string name() const override {
-    return "QuerySelectedTagEvent";
+    return "SelectEntityByTagEvent";
   }
   inline const std::string& get_tag() const { return m_tag; }
 
@@ -31,16 +15,54 @@ class QuerySelectedTagEvent : public mge::Event {
   const std::string& m_tag;
 };
 
-class QuerySelectedCursorEvent : public mge::Event {
+class UnSelectEntityByTagEvent : public mge::Event {
  public:
-  QuerySelectedCursorEvent(glm::vec2 position) : m_position(position) {}
+  UnSelectEntityByTagEvent(const std::string& tag) : m_tag(tag) {}
   virtual inline const std::string name() const override {
-    return "QuerySelectedCursorEvent";
+    return "UnSelectEntityByTagEvent";
+  }
+  inline const std::string& get_tag() const { return m_tag; }
+
+ protected:
+  const std::string& m_tag;
+};
+
+class UnSelectAllEntitiesEvent : public mge::Event {
+ public:
+  UnSelectAllEntitiesEvent() {}
+  virtual inline const std::string name() const override {
+    return "UnSelectAllEntitiesEvent";
+  }
+};
+
+class SelectEntityByPositionEvent : public mge::Event {
+ public:
+  SelectEntityByPositionEvent(glm::vec2 position) : m_position(position) {}
+  virtual inline const std::string name() const override {
+    return "SelectEntityByPositionEvent";
   }
   inline glm::vec2 get_position() const { return m_position; }
 
  private:
   glm::vec2 m_position;
+};
+
+class QuerySelectedEntityEvent : public mge::Event {
+ public:
+  QuerySelectedEntityEvent() : m_entity{} {}
+  virtual inline const std::string name() const override {
+    return "QuerySelectedEntityEvent";
+  }
+  inline std::optional<std::reference_wrapper<mge::Entity>> get_entity() const {
+    return m_entity;
+  }
+  inline void set_entity(
+      std::optional<std::reference_wrapper<mge::Entity>> entity) {
+    m_entity = entity;
+  }
+
+ private:
+  std::optional<std::reference_wrapper<mge::Entity>> m_entity;
 };
 
 #endif  // MCAD_EVENTS_SELECT_EVENT_HH
