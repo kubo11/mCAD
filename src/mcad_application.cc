@@ -6,9 +6,9 @@
 
 MCadApplication::MCadApplication() {
   auto cad_layer = std::make_unique<CadLayer>(m_scene);
-  auto& cursor = cad_layer->get_cursor();
+  const auto& scene = cad_layer->get_scene();
   push_layer(std::move(cad_layer));
   //   push_layer(std::move(std::make_unique<GridLayer>(m_camera)));
-  push_layer(std::move(std::make_unique<UILayer>(cursor)));
+  push_layer(std::move(std::make_unique<UILayer>(scene)));
   push_layer(std::move(std::make_unique<InputLayer>()));
 }

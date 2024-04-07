@@ -40,34 +40,34 @@ bool InputLayer::on_mouse_moved(mge::WindowMouseMovedEvent& event) {
   switch (m_state) {
     case InputState::SCALE:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        ScaleEvent scale_event(event.get_beg(), event.get_end());
+        ScaleByCursorEvent scale_event(event.get_beg(), event.get_end());
         m_send_event(scale_event);
       }
       break;
     case InputState::ROTATEX:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        RotateEvent rotate_event(event.get_beg(), event.get_end(),
-                                 {1.0f, 0.0f, 0.0f});
+        RotateByCursorEvent rotate_event(event.get_beg(), event.get_end(),
+                                         {1.0f, 0.0f, 0.0f});
         m_send_event(rotate_event);
       }
       break;
     case InputState::ROTATEY:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        RotateEvent rotate_event(event.get_beg(), event.get_end(),
-                                 {0.0f, 1.0f, 0.0f});
+        RotateByCursorEvent rotate_event(event.get_beg(), event.get_end(),
+                                         {0.0f, 1.0f, 0.0f});
         m_send_event(rotate_event);
       }
       break;
     case InputState::ROTATEZ:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        RotateEvent rotate_event(event.get_beg(), event.get_end(),
-                                 {0.0f, 0.0f, 1.0f});
+        RotateByCursorEvent rotate_event(event.get_beg(), event.get_end(),
+                                         {0.0f, 0.0f, 1.0f});
         m_send_event(rotate_event);
       }
       break;
     case InputState::MOVE:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        MoveEvent move_event;
+        MoveByCursorEvent move_event;
         m_send_event(move_event);
       }
       break;

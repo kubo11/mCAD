@@ -47,22 +47,4 @@ class SelectEntityByPositionEvent : public mge::Event {
   glm::vec2 m_position;
 };
 
-class QuerySelectedEntityEvent : public mge::Event {
- public:
-  QuerySelectedEntityEvent() : m_entity{} {}
-  virtual inline const std::string name() const override {
-    return "QuerySelectedEntityEvent";
-  }
-  inline std::optional<std::reference_wrapper<mge::Entity>> get_entity() const {
-    return m_entity;
-  }
-  inline void set_entity(
-      std::optional<std::reference_wrapper<mge::Entity>> entity) {
-    m_entity = entity;
-  }
-
- private:
-  std::optional<std::reference_wrapper<mge::Entity>> m_entity;
-};
-
 #endif  // MCAD_EVENTS_SELECT_EVENT_HH

@@ -20,7 +20,17 @@ PointComponent::get_vertex_array() {
                                 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3});
 }
 
-mge::Shader& PointComponent::get_shader() {
+const std::shared_ptr<mge::Shader>& PointComponent::get_shader() {
   return mge::ShaderSystem::acquire(fs::current_path() / "src" / "shaders" /
                                     "solid" / "surface");
+}
+
+void PointComponent::on_construct(entt::registry& registry,
+                                  entt::entity entity) {
+  registry.emplace_or_replace<mge::TransformComponent>(entity);
+  registry
+      .emplace_or_replace<mge::RenderableComponent<GeometryVertex>>(
+          entity, PointComponent::get_shader(),
+          std::move(PointComponent::get_vertex_array()))
+      .set_render_mode(mge::RenderMode::SURFACE);
 }

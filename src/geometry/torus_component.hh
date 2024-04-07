@@ -13,6 +13,18 @@ struct TorusComponent {
         m_outer_radius(outer_radius),
         m_horizontal_density(horizontal_density),
         m_vertical_density(vertival_density) {}
+  TorusComponent(TorusComponent&& other)
+      : m_inner_radius(std::move(other.m_inner_radius)),
+        m_outer_radius(std::move(other.m_outer_radius)),
+        m_horizontal_density(std::move(other.m_horizontal_density)),
+        m_vertical_density(std::move(other.m_vertical_density)) {}
+  inline TorusComponent& operator=(TorusComponent&& other) {
+    m_inner_radius = std::move(other.m_inner_radius);
+    m_outer_radius = std::move(other.m_outer_radius);
+    m_horizontal_density = std::move(other.m_horizontal_density);
+    m_vertical_density = std::move(other.m_vertical_density);
+    return *this;
+  }
 
   void set_inner_radius(float inner_radius) { m_inner_radius = inner_radius; }
   void set_outer_radius(float outer_radius) { m_outer_radius = outer_radius; }
@@ -40,8 +52,13 @@ struct TorusComponent {
   template <mge::RenderMode mode>
   std::vector<unsigned int> generate_topology();
 
+  void on_construct(entt::registry& registry, entt::entity entity);
+  void on_update(entt::registry& registry, entt::entity entity);
+
  private:
   static unsigned int s_new_id;
+  static const fs::path s_default_shader_path;
+
   float m_inner_radius;
   float m_outer_radius;
   unsigned int m_horizontal_density;

@@ -15,9 +15,9 @@ void GridLayer::configure() {
 }
 
 void GridLayer::update() {
-  m_shader.use();
-  m_shader.set_uniform("projection_view",
-                       m_camera.get_projection_view_matrix());
+  m_shader->use();
+  m_shader->set_uniform("projection_view",
+                        m_camera.get_projection_view_matrix());
   m_vertex_array->bind();
   mge::Renderer<mge::RendererType::TRIANGLES>::draw_indexed(6);
   //   glClear(GL_DEPTH_BUFFER_BIT);

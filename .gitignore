@@ -2,7 +2,7 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,c++,cmake,visualstudiocode
 
 ### Project ###
-build/
+build*/
 
 ### C ###
 # Prerequisites
@@ -115,5 +115,8 @@ _deps
 # Ignore all local history of files
 .history
 .ionide
+
+### CLion ###
+.idea/
 
 # End of https://www.toptal.com/developers/gitignore/api/c,c++,cmake,visualstudiocode

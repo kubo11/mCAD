@@ -1,6 +1,8 @@
 #include "torus_component.hh"
 
 unsigned int TorusComponent::s_new_id = 1;
+const fs::path TorusComponent::s_default_shader_path =
+    fs::current_path() / "src" / "shaders" / "solid" / "wireframe";
 
 std::vector<GeometryVertex> TorusComponent::generate_geometry() {
   std::vector<GeometryVertex> vertices(m_vertical_density *
@@ -72,4 +74,30 @@ TorusComponent::generate_topology<mge::RenderMode::SURFACE>() {
   }
 
   return indices;
+}
+
+void TorusComponent::on_construct(entt::registry& registry,
+                                  entt::entity entity) {
+  registry.emplace_or_replace<mge::TransformComponent>(entity);
+  auto vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(this->generate_geometry()),
+      GeometryVertex::get_vertex_attributes(),
+      std::move(this->generate_topology<mge::RenderMode::WIREFRAME>()));
+  registry.emplace_or_replace<mge::RenderableComponent<GeometryVertex>>(
+      entity, mge::ShaderSystem::acquire(s_default_shader_path),
+      std::move(vertex_array));
+}
+
+void TorusComponent::on_update(entt::registry& registry, entt::entity entity) {
+  auto& renderable =
+      registry.get<mge::RenderableComponent<GeometryVertex>>(entity);
+  renderable.get_vertex_array().update_vertices(
+      std::move(this->generate_geometry()));
+  if (renderable.get_render_mode() == mge::RenderMode::WIREFRAME) {
+    renderable.get_vertex_array().update_indices(
+        std::move(this->generate_topology<mge::RenderMode::WIREFRAME>()));
+  } else if (renderable.get_render_mode() == mge::RenderMode::SURFACE) {
+    renderable.get_vertex_array().update_indices(
+        std::move(this->generate_topology<mge::RenderMode::SURFACE>()));
+  }
 }

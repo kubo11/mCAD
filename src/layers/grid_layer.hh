@@ -16,7 +16,7 @@ class GridLayer : public mge::Layer {
 
  private:
   std::unique_ptr<mge::VertexArray<GeometryVertex>> m_vertex_array = nullptr;
-  mge::Shader& m_shader;
+  std::shared_ptr<mge::Shader> m_shader;
   mge::Camera& m_camera;
 };
 
