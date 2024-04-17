@@ -2,11 +2,9 @@
 
 #include "cursor_vertex.hh"
 
-void CursorComponent::on_construct(entt::registry& registry,
-                                   entt::entity entity) {
-  registry.emplace_or_replace<mge::TransformComponent>(entity);
-  registry.emplace_or_replace<mge::RenderableComponent<CursorVertex>>(
-      entity,
+void CursorComponent::on_construct(mge::Entity& entity) {
+  entity.add_or_replace_component<mge::TransformComponent>();
+  entity.add_or_replace_component<mge::RenderableComponent<CursorVertex>>(
       mge::ShaderSystem::acquire(fs::current_path() / "src" / "shaders" /
                                  "cursor"),
       std::move(std::make_unique<mge::VertexArray<CursorVertex>>(

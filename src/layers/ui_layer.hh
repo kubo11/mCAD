@@ -9,34 +9,31 @@
 #include "../geometry/torus_component.hh"
 
 class UILayer : public mge::Layer {
-  using SelectibleEntities =
-      entt::get_t<SelectibleComponent, mge::TagComponent>;
-  using SelectedEntities = entt::get_t<SelectedComponent, mge::TagComponent>;
-  using SelectedChildEntities =
-      entt::get_t<SelectedChildComponent, mge::TagComponent>;
-  using NoExclude = entt::exclude_t<>;
-
  public:
-  UILayer(const mge::Scene& scene);
-  ~UILayer() {}
+  UILayer();
+  ~UILayer() { MGE_WARN("UILayer terminated."); }
 
   virtual void configure() override;
   virtual void update() override;
   virtual void handle_event(mge::Event& event, float dt) override;
 
  private:
-  const mge::Scene& m_scene;
+  std::optional<std::reference_wrapper<mge::Entity>> m_displayed_entity;
+  std::map<std::string, bool> m_entities;
 
-  void show_tag_panel(const mge::TagComponent& component);
-  void show_transform_panel(const mge::TransformComponent& component);
-  void show_limited_transform_panel(const mge::TransformComponent& component);
-  void show_renderable_component(
-      const mge::RenderableComponent<GeometryVertex>& component);
-  void show_torus_panel(const TorusComponent& component);
-  void show_point_panel(const PointComponent& component);
+  void show_tag_panel(const mge::Entity& entity);
+  void show_transform_panel(const mge::Entity& entity);
+  void show_limited_transform_panel(const mge::Entity& entity);
+  void show_renderable_component(const mge::Entity& entity);
+  void show_torus_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);
+
+  bool on_new_entity(NewEntityEvent& event);
+  bool on_removed_entity(RemoveEntityEvent& event);
+  bool on_select_entity_by_tag(SelectEntityByTagEvent event);
+  bool on_unselect_all_entities(UnSelectAllEntitiesEvent event);
 };
 
 #endif  // MCAD_UI_LAYER_HH

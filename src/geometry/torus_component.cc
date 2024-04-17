@@ -76,28 +76,28 @@ TorusComponent::generate_topology<mge::RenderMode::SURFACE>() {
   return indices;
 }
 
-void TorusComponent::on_construct(entt::registry& registry,
-                                  entt::entity entity) {
-  registry.emplace_or_replace<mge::TransformComponent>(entity);
+void TorusComponent::on_construct(mge::Entity& entity) {
+  entity.add_or_replace_component<mge::TransformComponent>();
   auto vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
       std::move(this->generate_geometry()),
       GeometryVertex::get_vertex_attributes(),
       std::move(this->generate_topology<mge::RenderMode::WIREFRAME>()));
-  registry.emplace_or_replace<mge::RenderableComponent<GeometryVertex>>(
-      entity, mge::ShaderSystem::acquire(s_default_shader_path),
+  entity.add_or_replace_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::ShaderSystem::acquire(s_default_shader_path),
       std::move(vertex_array));
 }
 
-void TorusComponent::on_update(entt::registry& registry, entt::entity entity) {
-  auto& renderable =
-      registry.get<mge::RenderableComponent<GeometryVertex>>(entity);
-  renderable.get_vertex_array().update_vertices(
-      std::move(this->generate_geometry()));
-  if (renderable.get_render_mode() == mge::RenderMode::WIREFRAME) {
-    renderable.get_vertex_array().update_indices(
-        std::move(this->generate_topology<mge::RenderMode::WIREFRAME>()));
-  } else if (renderable.get_render_mode() == mge::RenderMode::SURFACE) {
-    renderable.get_vertex_array().update_indices(
-        std::move(this->generate_topology<mge::RenderMode::SURFACE>()));
-  }
+void TorusComponent::on_update(mge::Entity& entity) {
+  entity.patch<mge::RenderableComponent<GeometryVertex>>(
+      [this](auto& renderable) {
+        renderable.get_vertex_array().update_vertices(
+            std::move(this->generate_geometry()));
+        if (renderable.get_render_mode() == mge::RenderMode::WIREFRAME) {
+          renderable.get_vertex_array().update_indices(
+              std::move(this->generate_topology<mge::RenderMode::WIREFRAME>()));
+        } else if (renderable.get_render_mode() == mge::RenderMode::SURFACE) {
+          renderable.get_vertex_array().update_indices(
+              std::move(this->generate_topology<mge::RenderMode::SURFACE>()));
+        }
+      });
 }

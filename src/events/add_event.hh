@@ -9,18 +9,6 @@ class AddEvent : public mge::Event {
   virtual inline const std::string name() const override { return "AddEvent"; }
 };
 
-class AnnounceNewEntityEvent : public mge::Event {
- public:
-  AnnounceNewEntityEvent(const std::string& tag) : m_tag(tag) {}
-  virtual inline const std::string name() const override {
-    return "AnnounceNewEntityEvent";
-  }
-  inline const std::string& get_tag() const { return m_tag; }
-
- protected:
-  const std::string& m_tag;
-};
-
 class AddTorusEvent : public AddEvent {
  public:
   AddTorusEvent() : AddEvent() {}
@@ -35,6 +23,26 @@ class AddPointEvent : public AddEvent {
   virtual inline const std::string name() const override {
     return "AddPointEvent";
   }
+};
+
+class AddBezierEvent : public AddEvent {
+ public:
+  AddBezierEvent() : AddEvent() {}
+  virtual inline const std::string name() const override {
+    return "AddBezierEvent";
+  }
+};
+
+class NewEntityEvent : public mge::Event {
+ public:
+  NewEntityEvent(const std::string& tag) : m_tag(tag) {}
+  virtual inline const std::string name() const override {
+    return "NewEntityEvent";
+  }
+  inline const std::string& get_tag() const { return m_tag; }
+
+ private:
+  std::string m_tag;
 };
 
 #endif  // MCAD_EVENTS_ADD_EVENT_HH

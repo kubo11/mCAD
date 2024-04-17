@@ -8,7 +8,7 @@ struct CursorComponent {
   CursorComponent(CursorComponent&&) = default;
   inline CursorComponent& operator=(CursorComponent&& other) { return *this; }
 
-  void on_construct(entt::registry& registry, entt::entity entity);
+  void on_construct(mge::Entity& entity);
 
  private:
   int _ = 1;

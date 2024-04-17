@@ -1,5 +1,6 @@
 #include "cad_layer.hh"
 
+#include "../geometry/bezier_component.hh"
 #include "../geometry/cursor_component.hh"
 #include "../geometry/cursor_vertex.hh"
 #include "../geometry/mass_center_component.hh"
@@ -13,28 +14,41 @@ const std::string CadLayer::s_mass_center_tag = "mass_center";
 CadLayer::CadLayer(mge::Scene& scene)
     : m_scene(scene),
       m_cursor(m_scene.create_entity(CadLayer::s_cursor_tag)),
-      m_mass_center(m_scene.create_entity(CadLayer::s_mass_center_tag)) {}
+      m_mass_center(m_scene.create_entity(CadLayer::s_mass_center_tag)),
+      m_selected() {}
+
+CadLayer::~CadLayer() {
+  m_scene.disconnect_all<mge::TransformComponent>();
+  m_scene.disconnect_all<TorusComponent>();
+  m_scene.disconnect_all<PointComponent>();
+  m_scene.disconnect_all<CursorComponent>();
+  m_scene.disconnect_all<MassCenterComponent>();
+  m_scene.disconnect_all<SelectibleComponent>();
+}
 
 void CadLayer::configure() {
+  m_scene.on_update<mge::TransformComponent, &CadLayer::on_transform_update>(
+      *this);
+
   m_scene.on_construct<TorusComponent, &TorusComponent::on_construct>();
   m_scene.on_update<TorusComponent, &TorusComponent::on_update>();
+
   m_scene.on_construct<PointComponent, &PointComponent::on_construct>();
-  m_scene.on_update<SelectibleComponent,
-                    &SelectibleComponent::on_update<GeometryVertex>>();
+
+  // TODO: connect Bezier listeners
+
   m_scene.on_construct<CursorComponent, &CursorComponent::on_construct>();
-  m_scene.on_construct<SelectedComponent, &SelectedComponent::on_construct>();
-  m_scene.on_destroy<SelectedComponent, &SelectedComponent::on_destroy>();
-  m_scene.on_construct<SelectedChildComponent,
-                       &SelectedChildComponent::on_construct>();
-  m_scene.on_destroy<SelectedChildComponent,
-                     &SelectedChildComponent::on_destroy>();
+
   m_scene
       .on_construct<MassCenterComponent, &MassCenterComponent::on_construct>();
-  m_scene.on_construct<SelectedComponent, &CadLayer::on_seleciton_changed>(
+
+  m_scene.on_construct<SelectibleComponent, &CadLayer::on_selectible_construct>(
       *this);
-  m_scene.on_construct<SelectedChildComponent, &CadLayer::on_seleciton_changed>(
+  m_scene.on_update<SelectibleComponent,
+                    &SelectibleComponent::on_update<GeometryVertex>>();
+  m_scene.on_update<SelectibleComponent, &CadLayer::on_selectible_update>(
       *this);
-  m_scene.on_update<mge::TransformComponent, &CadLayer::on_transform_changed>(
+  m_scene.on_destroy<SelectibleComponent, &CadLayer::on_selectible_destroy>(
       *this);
 
   m_cursor.add_component<CursorComponent>();
@@ -86,6 +100,8 @@ void CadLayer::handle_event(mge::Event& event, float dt) {
       event, BIND_EVENT_HANDLER(CadLayer::on_add_point_event));
   mge::Event::try_handler<AddTorusEvent>(
       event, BIND_EVENT_HANDLER(CadLayer::on_add_torus_event));
+  mge::Event::try_handler<AddBezierEvent>(
+      event, BIND_EVENT_HANDLER(CadLayer::on_add_bezier_event));
 
   mge::Event::try_handler<DeletePositionEvent>(
       event, BIND_EVENT_HANDLER(CadLayer::on_delete_position_event));
@@ -115,7 +131,14 @@ void CadLayer::handle_event(mge::Event& event, float dt) {
 }
 
 bool CadLayer::on_select_entity_by_tag(SelectEntityByTagEvent& event) {
-  m_scene.get_entity(event.get_tag()).add_component<SelectedComponent>();
+  if (m_scene.get_entity(event.get_tag())
+          .get_component<SelectibleComponent>()
+          .is_selected()) {
+    return true;
+  }
+  m_scene.get_entity(event.get_tag())
+      .patch<SelectibleComponent>(
+          [](auto& selectible) { selectible.set_selection(true); });
   return true;
 }
 
@@ -123,20 +146,45 @@ bool CadLayer::on_select_entity_by_position(
     SelectEntityByPositionEvent& event) {
   auto entity = get_closest_selectible_entity(event.get_position());
   if (entity.has_value()) {
-    entity.value().get().add_component<SelectedComponent>();
+    if (entity.value()
+            .get()
+            .get_component<SelectibleComponent>()
+            .is_selected()) {
+      return true;
+    }
+    entity.value().get().patch<SelectibleComponent>(
+        [](auto& selectible) { selectible.set_selection(true); });
+    SelectEntityByTagEvent select_event(
+        entity->get().get_component<mge::TagComponent>());
+    m_send_event(select_event);
   } else {
-    m_scene.clear<SelectedComponent>();
+    for (auto& selected : m_selected) {
+      selected.get().patch<SelectibleComponent>(
+          [](auto& selectible) { selectible.set_selection(false); });
+    }
+    UnSelectAllEntitiesEvent unselect_event;
+    m_send_event(unselect_event);
   }
   return true;
 }
 
 bool CadLayer::on_unselect_entity_by_tag(UnSelectEntityByTagEvent& event) {
-  m_scene.get_entity(event.get_tag()).remove_component<SelectedComponent>();
+  if (!m_scene.get_entity(event.get_tag())
+           .get_component<SelectibleComponent>()
+           .is_selected()) {
+    return true;
+  }
+  m_scene.get_entity(event.get_tag())
+      .patch<SelectibleComponent>(
+          [](auto& selectible) { selectible.set_selection(false); });
   return true;
 }
 
 bool CadLayer::on_unselect_all_entities(UnSelectAllEntitiesEvent& event) {
-  m_scene.clear<SelectedComponent>();
+  for (auto& selected : m_selected) {
+    selected.get().patch<SelectibleComponent>(
+        [](auto& selectible) { selectible.set_selection(false); });
+  }
   return true;
 }
 
@@ -160,26 +208,37 @@ bool CadLayer::on_camera_zoom(mge::CameraZoomEvent& event) {
 }
 
 bool CadLayer::on_add_point_event(AddPointEvent& event) {
-  auto tag = PointComponent::get_new_name();
-  auto& entity = m_scene.create_entity(tag);
-  entity.add_component<PointComponent>();
-  entity.add_component<SelectibleComponent>();
-  entity.patch<mge::TransformComponent>([this](auto& transform) {
+  auto& entity = m_scene.create_entity(PointComponent::get_new_name());
+  entity.template add_component<PointComponent>();
+  entity.template patch<mge::TransformComponent>([this](auto& transform) {
     transform.set_position(
         m_cursor.get_component<mge::TransformComponent>().get_position());
   });
+  entity.template add_component<SelectibleComponent>();
   return true;
 }
 
 bool CadLayer::on_add_torus_event(AddTorusEvent& event) {
-  auto tag = TorusComponent::get_new_name();
-  auto& entity = m_scene.create_entity(tag);
-  entity.add_component<TorusComponent>();
-  entity.add_component<SelectibleComponent>();
-  entity.patch<mge::TransformComponent>([this](auto& transform) {
+  auto& entity = m_scene.create_entity(TorusComponent::get_new_name());
+  entity.template add_component<TorusComponent>();
+  entity.template patch<mge::TransformComponent>([this](auto& transform) {
     transform.set_position(
         m_cursor.get_component<mge::TransformComponent>().get_position());
   });
+  entity.template add_component<SelectibleComponent>();
+  return true;
+}
+
+bool CadLayer::on_add_bezier_event(AddBezierEvent& event) {
+  for (auto& selected : m_selected) {
+    if (!selected.get().has_component<PointComponent>()) {
+      return true;
+    }
+  }
+
+  auto& entity = m_scene.create_entity(BezierComponent::get_new_name());
+  entity.template add_component<BezierComponent>(m_selected);
+  entity.template add_component<SelectibleComponent>();
   return true;
 }
 
@@ -206,13 +265,7 @@ bool CadLayer::on_rename_event(RenameEvent& event) {
 }
 
 bool CadLayer::on_move_by_cursor_event(MoveByCursorEvent& event) {
-  auto size =
-      m_scene.size<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                     entt::exclude_t<>()) +
-      m_scene.size<>(
-          entt::get_t<SelectedChildComponent, mge::TransformComponent>(),
-          entt::exclude_t<>());
-  if (size == 0) {
+  if (m_selected.empty()) {
     return true;
   }
 
@@ -220,29 +273,20 @@ bool CadLayer::on_move_by_cursor_event(MoveByCursorEvent& event) {
       m_mass_center.get_component<mge::TransformComponent>().get_position();
   glm::vec3 offset =
       m_cursor.get_component<mge::TransformComponent>().get_position() - center;
-  m_scene.foreach<>(
-      entt::get_t<SelectedComponent, mge::TransformComponent>(),
-      entt::exclude_t<>(), [&offset](mge::Entity& entity) {
-        entity.template patch<mge::TransformComponent>(
-            [&offset](auto& transform) { transform.translate(offset); });
-      });
-  m_scene.foreach<>(
-      entt::get_t<SelectedChildComponent, mge::TransformComponent>(),
-      entt::exclude_t<>(), [&offset](mge::Entity& entity) {
-        entity.template patch<mge::TransformComponent>(
-            [&offset](auto& transform) { transform.translate(offset); });
-      });
+  for (auto& selected : m_selected) {
+    selected.get().run_and_propagate([&offset](auto& entity) {
+      if (!entity.template has_component<mge::TransformComponent>()) {
+        return;
+      }
+      entity.template patch<mge::TransformComponent>(
+          [&offset](auto& transform) { transform.translate(offset); });
+    });
+  }
   return true;
 }
 
 bool CadLayer::on_scale_by_cursor_event(ScaleByCursorEvent& event) {
-  auto size =
-      m_scene.size<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                     entt::exclude_t<>()) +
-      m_scene.size<>(
-          entt::get_t<SelectedChildComponent, mge::TransformComponent>(),
-          entt::exclude_t<>());
-  if (size == 0) {
+  if (m_selected.empty()) {
     return true;
   }
 
@@ -250,32 +294,20 @@ bool CadLayer::on_scale_by_cursor_event(ScaleByCursorEvent& event) {
       m_mass_center.get_component<mge::TransformComponent>().get_position();
   float scale_factor = glm::distance(center, unproject_point(event.get_end())) /
                        glm::distance(center, unproject_point(event.get_beg()));
-  m_scene.foreach<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                    entt::exclude_t<>(), [&scale_factor](mge::Entity& entity) {
-                      entity.template patch<mge::TransformComponent>(
-                          [&scale_factor](auto& transform) {
-                            transform.scale(scale_factor);
-                          });
-                    });
-  m_scene.foreach<>(
-      entt::get_t<SelectedChildComponent, mge::TransformComponent>(),
-      entt::exclude_t<>(), [&scale_factor](mge::Entity& entity) {
-        entity.template patch<mge::TransformComponent>(
-            [&scale_factor](auto& transform) {
-              transform.scale(scale_factor);
-            });
-      });
+  for (auto& selected : m_selected) {
+    selected.get().run_and_propagate([&scale_factor](auto& entity) {
+      if (!entity.template has_component<mge::TransformComponent>()) {
+        return;
+      }
+      entity.template patch<mge::TransformComponent>(
+          [&scale_factor](auto& transform) { transform.scale(scale_factor); });
+    });
+  }
   return true;
 }
 
 bool CadLayer::on_rotate_by_cursor_event(RotateByCursorEvent& event) {
-  auto size =
-      m_scene.size<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                     entt::exclude_t<>()) +
-      m_scene.size<>(
-          entt::get_t<SelectedChildComponent, mge::TransformComponent>(),
-          entt::exclude_t<>());
-  if (size == 0) {
+  if (m_selected.empty()) {
     return true;
   }
 
@@ -290,74 +322,81 @@ bool CadLayer::on_rotate_by_cursor_event(RotateByCursorEvent& event) {
               glm::vec3(glm::normalize(event.get_beg() - center_ss), 0.0f),
               glm::vec3(glm::normalize(event.get_end() - center_ss), 0.0f)))
           .z;
-  m_scene.foreach<>(
-      entt::get_t<SelectedComponent, mge::TransformComponent>(),
-      entt::exclude_t<>(), [&angle, &center, &event](mge::Entity& entity) {
-        entity.template patch<mge::TransformComponent>(
-            [&angle, &center, &event](auto& transform) {
-              transform.rotate(angle, event.get_axis());
-              transform.set_position(center +
-                                     glm::angleAxis(angle, event.get_axis()) *
-                                         (transform.get_position() - center));
-            });
-      });
-  m_scene.foreach<>(
-      entt::get_t<SelectedChildComponent, mge::TransformComponent>(),
-      entt::exclude_t<>(), [&angle, &center, &event](mge::Entity& entity) {
-        entity.template patch<mge::TransformComponent>(
-            [&angle, &center, &event](auto& transform) {
-              transform.rotate(angle, event.get_axis());
-              transform.set_position(center +
-                                     glm::angleAxis(angle, event.get_axis()) *
-                                         (transform.get_position() - center));
-            });
-      });
+  for (auto& selected : m_selected) {
+    selected.get().run_and_propagate([&angle, &center, &event](auto& entity) {
+      if (!entity.template has_component<mge::TransformComponent>()) {
+        return;
+      }
+      entity.template patch<mge::TransformComponent>(
+          [&angle, &center, &event](auto& transform) {
+            transform.rotate(angle, event.get_axis());
+            transform.set_position(center +
+                                   glm::angleAxis(angle, event.get_axis()) *
+                                       (transform.get_position() - center));
+          });
+    });
+  }
   return true;
 }
 
 bool CadLayer::on_move_by_ui_event(MoveByUIEvent& event) {
-  m_scene.foreach<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                    entt::exclude_t<>(), [&event](mge::Entity& entity) {
-                      entity.template patch<mge::TransformComponent>(
-                          [&event](auto& transform) {
-                            transform.set_position(event.get_offset());
-                          });
-                    });
+  for (auto& selected : m_selected) {
+    selected.get().run_and_propagate([&event](auto& entity) {
+      if (!entity.template has_component<mge::TransformComponent>()) {
+        return;
+      }
+      entity.template patch<mge::TransformComponent>([&event](auto& transform) {
+        transform.set_position(event.get_offset());
+      });
+    });
+  }
   return true;
 }
 
 bool CadLayer::on_scale_by_ui_event(ScaleByUIEvent& event) {
-  m_scene.foreach<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                    entt::exclude_t<>(), [&event](mge::Entity& entity) {
-                      entity.template patch<mge::TransformComponent>(
-                          [&event](auto& transform) {
-                            transform.set_scale(event.get_scale());
-                          });
-                    });
+  for (auto& selected : m_selected) {
+    selected.get().run_and_propagate([&event](auto& entity) {
+      if (!entity.template has_component<mge::TransformComponent>()) {
+        return;
+      }
+      entity.template patch<mge::TransformComponent>([&event](auto& transform) {
+        transform.set_scale(event.get_scale());
+      });
+    });
+  }
   return true;
 }
 
 bool CadLayer::on_rotate_by_ui_event(RotateByUIEvent& event) {
-  m_scene.foreach<>(entt::get_t<SelectedComponent, mge::TransformComponent>(),
-                    entt::exclude_t<>(), [&event](mge::Entity& entity) {
-                      entity.template patch<mge::TransformComponent>(
-                          [&event](auto& transform) {
-                            transform.set_rotation(event.get_rotation());
-                          });
-                    });
+  for (auto& selected : m_selected) {
+    selected.get().run_and_propagate([&event](auto& entity) {
+      if (!entity.template has_component<mge::TransformComponent>()) {
+        return;
+      }
+      entity.template patch<mge::TransformComponent>([&event](auto& transform) {
+        transform.set_rotation(event.get_rotation());
+      });
+    });
+  }
   return true;
 }
 
 bool CadLayer::on_torus_updated(TorusUpdatedEvent& event) {
-  m_scene.foreach<>(
-      entt::get_t<SelectedComponent, TorusComponent>(), entt::exclude_t<>(),
-      [&event](mge::Entity& entity) {
-        entity.template patch<TorusComponent>([&event](auto& torus) {
-          torus.set_inner_radius(event.get_inner_radius());
-          torus.set_outer_radius(event.get_outer_radius());
-          torus.set_horizontal_density(event.get_horizontal_density());
-          torus.set_vertical_density(event.get_vertical_density());
-        });
+  auto& entity = m_scene.get_entity(event.get_tag());
+  entity.patch<TorusComponent>([&event](auto& torus) {
+    torus.set_inner_radius(event.get_inner_radius());
+    torus.set_outer_radius(event.get_outer_radius());
+    torus.set_horizontal_density(event.get_horizontal_density());
+    torus.set_vertical_density(event.get_vertical_density());
+  });
+  return true;
+}
+
+bool CadLayer::on_render_mode_updated(mge::RenderModeUpdatedEvent& event) {
+  auto& entity = m_scene.get_entity(event.get_tag());
+  entity.patch<mge::RenderableComponent<GeometryVertex>>(
+      [&event](auto& renderable) {
+        renderable.set_render_mode(event.get_render_mode());
       });
   return true;
 }
@@ -369,8 +408,8 @@ glm::vec3 CadLayer::unproject_point(glm::vec2 pos) const {
   return glm::vec3(unprojected_point) / unprojected_point.w;
 }
 
-std::optional<std::reference_wrapper<mge::Entity>>
-CadLayer::get_closest_selectible_entity(glm::vec2 position) {
+mge::OptionalEntity CadLayer::get_closest_selectible_entity(
+    glm::vec2 position) {
   float min_dist = 10e7;
   std::string closest_tag;
   auto& camera = m_scene.get_current_camera();
@@ -397,43 +436,55 @@ CadLayer::get_closest_selectible_entity(glm::vec2 position) {
   return std::nullopt;
 }
 
-void CadLayer::on_seleciton_changed(entt::registry& registry,
-                                    entt::entity entity) {
-  m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
-    mass_center.update_mass_center(m_scene, m_mass_center);
-  });
-}
+// FIXME: redundant calculations when multiple children are updated
+void CadLayer::on_transform_update(entt::registry& registry,
+                                   entt::entity entt_entity) {
+  auto& entity =
+      m_scene.get_entity(registry.get<mge::TagComponent>(entt_entity));
+  //  for (auto& parent : entity.get_parents()) {
+  //    if (!parent.get().has_component<BezierComponent>()) {
+  //      continue;
+  //    }
+  //
+  //    parent.get().patch<BezierComponent>([](auto& bezier) { bezier.update();
+  //    });
+  //  }
 
-bool CadLayer::on_render_mode_updated(mge::RenderModeUpdatedEvent& event) {
-  m_scene.foreach<>(
-      entt::get_t<SelectedComponent,
-                  mge::RenderableComponent<GeometryVertex>>(),
-      entt::exclude_t<>(), [&event](mge::Entity& entity) {
-        entity.template patch<mge::RenderableComponent<GeometryVertex>>(
-            [&event](auto& renderable) {
-              renderable.set_render_mode(event.get_render_mode());
-            });
-      });
-  m_scene.foreach<>(
-      entt::get_t<SelectedChildComponent,
-                  mge::RenderableComponent<GeometryVertex>>(),
-      entt::exclude_t<>(), [&event](mge::Entity& entity) {
-        entity.template patch<mge::RenderableComponent<GeometryVertex>>(
-            [&event](auto& renderable) {
-              renderable.set_render_mode(event.get_render_mode());
-            });
-      });
-  return true;
-}
-
-void CadLayer::on_transform_changed(entt::registry& registry,
-                                    entt::entity entity) {
-  if (!registry.try_get<SelectedComponent>(entity) &&
-      !registry.try_get<SelectedChildComponent>(entity)) {
+  if (!entity.has_component<SelectibleComponent>() ||
+      !entity.get_component<SelectibleComponent>().is_selected()) {
     return;
   }
 
   m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
-    mass_center.update_mass_center(m_scene, m_mass_center);
+    mass_center.update_mass_center(m_selected, m_mass_center);
   });
+}
+
+void CadLayer::on_selectible_construct(entt::registry& registry,
+                                       entt::entity entt_entity) {
+  NewEntityEvent event(registry.get<mge::TagComponent>(entt_entity));
+  m_send_event(event);
+}
+
+void CadLayer::on_selectible_update(entt::registry& registry,
+                                    entt::entity entt_entity) {
+  auto& entity =
+      m_scene.get_entity(registry.get<mge::TagComponent>(entt_entity));
+
+  if (entity.get_component<SelectibleComponent>().is_selected()) {
+    m_selected.emplace_back(entity);
+  } else {
+    m_selected.erase(std::remove(m_selected.begin(), m_selected.end(), entity),
+                     m_selected.end());
+  }
+
+  m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
+    mass_center.update_mass_center(m_selected, m_mass_center);
+  });
+}
+
+void CadLayer::on_selectible_destroy(entt::registry& registry,
+                                     entt::entity entt_entity) {
+  RemoveEntityEvent event(registry.get<mge::TagComponent>(entt_entity));
+  m_send_event(event);
 }

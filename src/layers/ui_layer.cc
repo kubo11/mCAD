@@ -3,7 +3,7 @@
 #include "../input_state.hh"
 #include "cad_layer.hh"
 
-UILayer::UILayer(const mge::Scene& scene) : m_scene(scene) {}
+UILayer::UILayer() {}
 
 void UILayer::configure() {}
 
@@ -30,13 +30,10 @@ void UILayer::update() {
       ImGui::Text("objects");
       show_entities_list_panel();
 
-      if (m_scene.size<>(SelectedEntities(), NoExclude()) == 1) {
+      if (m_displayed_entity.has_value()) {
         ImGui::Separator();
         ImGui::Text("parameters");
-        m_scene.foreach<>(SelectedEntities(), NoExclude(),
-                          [this](const auto& entity) {
-                            show_entity_parameters_panel(entity);
-                          });
+        show_entity_parameters_panel(m_displayed_entity->get());
       }
 
       ImGui::EndTabItem();
@@ -57,9 +54,19 @@ void UILayer::update() {
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void UILayer::handle_event(mge::Event& event, float dt) {}
+void UILayer::handle_event(mge::Event& event, float dt) {
+  mge::Event::try_handler<NewEntityEvent>(
+      event, BIND_EVENT_HANDLER(UILayer::on_new_entity));
+  mge::Event::try_handler<RemoveEntityEvent>(
+      event, BIND_EVENT_HANDLER(UILayer::on_removed_entity));
+  mge::Event::try_handler<SelectEntityByTagEvent>(
+      event, BIND_EVENT_HANDLER(UILayer::on_select_entity_by_tag));
+  mge::Event::try_handler<UnSelectAllEntitiesEvent>(
+      event, BIND_EVENT_HANDLER(UILayer::on_unselect_all_entities));
+}
 
-void UILayer::show_tag_panel(const mge::TagComponent& component) {
+void UILayer::show_tag_panel(const mge::Entity& entity) {
+  auto& component = entity.get_component<mge::TagComponent>();
   std::string tag = component.get_tag();
   if (ImGui::InputText("##tag", &tag)) {
     RenameEvent event(component.get_tag(), tag);
@@ -67,7 +74,8 @@ void UILayer::show_tag_panel(const mge::TagComponent& component) {
   }
 }
 
-void UILayer::show_transform_panel(const mge::TransformComponent& component) {
+void UILayer::show_transform_panel(const mge::Entity& entity) {
+  auto& component = entity.get_component<mge::TransformComponent>();
   // position
   ImGui::Text("position");
   glm::vec3 position = component.get_position();
@@ -107,8 +115,8 @@ void UILayer::show_transform_panel(const mge::TransformComponent& component) {
   }
 }
 
-void UILayer::show_limited_transform_panel(
-    const mge::TransformComponent& component) {
+void UILayer::show_limited_transform_panel(const mge::Entity& entity) {
+  auto& component = entity.get_component<mge::TransformComponent>();
   // position
   ImGui::Text("position");
   glm::vec3 position = component.get_position();
@@ -119,8 +127,9 @@ void UILayer::show_limited_transform_panel(
   }
 }
 
-void UILayer::show_renderable_component(
-    const mge::RenderableComponent<GeometryVertex>& component) {
+void UILayer::show_renderable_component(const mge::Entity& entity) {
+  auto& component =
+      entity.get_component<mge::RenderableComponent<GeometryVertex>>();
   std::string selected_value = to_string(component.get_render_mode());
   if (ImGui::BeginCombo("##render_mode", selected_value.c_str())) {
     for (int n = 0; n < RENDER_MODE_SIZE; n++) {
@@ -129,7 +138,9 @@ void UILayer::show_renderable_component(
       if (ImGui::Selectable(
               to_string(static_cast<mge::RenderMode>(1 << n)).c_str(),
               is_selected)) {
-        mge::RenderModeUpdatedEvent event(static_cast<mge::RenderMode>(1 << n));
+        mge::RenderModeUpdatedEvent event(
+            entity.get_component<mge::TagComponent>(),
+            static_cast<mge::RenderMode>(1 << n));
         m_send_event(event);
       }
 
@@ -139,12 +150,14 @@ void UILayer::show_renderable_component(
   }
 }
 
-void UILayer::show_torus_panel(const TorusComponent& component) {
+void UILayer::show_torus_panel(const mge::Entity& entity) {
+  auto& component = entity.get_component<TorusComponent>();
   ImGui::Text("inner radius");
   float inner_radius = component.get_inner_radius();
   if (ImGui::InputFloat("##inner", &inner_radius, 0.1f, 1.0f, "%.2f")) {
     inner_radius = std::clamp(inner_radius, 0.0f, component.get_outer_radius());
-    TorusUpdatedEvent event(inner_radius, component.get_outer_radius(),
+    TorusUpdatedEvent event(entity.get_component<mge::TagComponent>(),
+                            inner_radius, component.get_outer_radius(),
                             component.get_horizontal_density(),
                             component.get_vertical_density());
     m_send_event(event);
@@ -154,7 +167,8 @@ void UILayer::show_torus_panel(const TorusComponent& component) {
   float outer_radius = component.get_outer_radius();
   if (ImGui::InputFloat("##outer", &outer_radius, 0.1f, 1.0f, "%.2f")) {
     outer_radius = std::max(outer_radius, component.get_inner_radius());
-    TorusUpdatedEvent event(component.get_inner_radius(), outer_radius,
+    TorusUpdatedEvent event(entity.get_component<mge::TagComponent>(),
+                            component.get_inner_radius(), outer_radius,
                             component.get_horizontal_density(),
                             component.get_vertical_density());
     m_send_event(event);
@@ -164,7 +178,8 @@ void UILayer::show_torus_panel(const TorusComponent& component) {
   int horizontal_density = component.get_horizontal_density();
   if (ImGui::InputInt("##horizontal", &horizontal_density, 1, 1)) {
     horizontal_density = std::clamp(horizontal_density, 3, 128);
-    TorusUpdatedEvent event(component.get_inner_radius(),
+    TorusUpdatedEvent event(entity.get_component<mge::TagComponent>(),
+                            component.get_inner_radius(),
                             component.get_outer_radius(), horizontal_density,
                             component.get_vertical_density());
     m_send_event(event);
@@ -175,13 +190,12 @@ void UILayer::show_torus_panel(const TorusComponent& component) {
   if (ImGui::InputInt("##vertical", &vertical_density, 1, 1)) {
     vertical_density = std::clamp(vertical_density, 3, 128);
     TorusUpdatedEvent event(
-        component.get_inner_radius(), component.get_outer_radius(),
-        component.get_horizontal_density(), vertical_density);
+        entity.get_component<mge::TagComponent>(), component.get_inner_radius(),
+        component.get_outer_radius(), component.get_horizontal_density(),
+        vertical_density);
     m_send_event(event);
   }
 }
-
-void UILayer::show_point_panel(const PointComponent& component) {}
 
 void UILayer::show_tools_panel() {
   static int selected_idx = 0;
@@ -212,58 +226,76 @@ void UILayer::show_tools_panel() {
     AddTorusEvent torus_event;
     m_send_event(torus_event);
   }
+
+  if (ImGui::Button("bezier")) {
+    AddBezierEvent bezier_event;
+    m_send_event(bezier_event);
+  }
 }
 
 void UILayer::show_entities_list_panel() {
-  m_scene.foreach (
-      SelectibleEntities(), NoExclude(), [this](const auto& entity) {
-        auto& tag = entity.template get_component<mge::TagComponent>();
-        auto& selectible = entity.template get_component<SelectibleComponent>();
-        if (ImGui::Selectable(tag.get_tag().c_str(),
-                              selectible.is_selected())) {
-          if (!ImGui::GetIO().KeyCtrl) {
-            UnSelectAllEntitiesEvent event;
-            m_send_event(event);
-          }
-          if (!selectible.is_selected()) {
-            SelectEntityByTagEvent event(tag);
-            m_send_event(event);
-          } else {
-            UnSelectEntityByTagEvent event(tag);
-            m_send_event(event);
-          }
+  for (auto& [tag, selected] : m_entities) {
+    if (ImGui::Selectable(tag.c_str(), selected)) {
+      if (!ImGui::GetIO().KeyCtrl) {
+        for (auto& [_, selected] : m_entities) {
+          selected = false;
         }
-      });
+        UnSelectAllEntitiesEvent event;
+        m_send_event(event);
+      }
+      selected = !selected;
+      if (selected) {
+        SelectEntityByTagEvent event(tag);
+        m_send_event(event);
+      } else {
+        UnSelectEntityByTagEvent event(tag);
+        m_send_event(event);
+      }
+    }
+  }
 }
 
 void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
   if (entity.has_component<mge::TagComponent>()) {
-    auto& tag_component = entity.get_component<mge::TagComponent>();
-    show_tag_panel(tag_component);
+    show_tag_panel(entity);
   }
 
   if (entity.has_component<mge::TransformComponent>()) {
-    auto& transform_component = entity.get_component<mge::TransformComponent>();
     if (entity.has_component<PointComponent>()) {
-      show_limited_transform_panel(transform_component);
+      show_limited_transform_panel(entity);
     } else {
-      show_transform_panel(transform_component);
+      show_transform_panel(entity);
     }
   }
 
   if (entity.has_component<TorusComponent>()) {
-    auto& torus_component = entity.get_component<TorusComponent>();
-    auto& tag_component = entity.get_component<mge::TagComponent>();
-    show_torus_panel(torus_component);
-  } else if (entity.has_component<PointComponent>()) {
-    auto& point_component = entity.get_component<PointComponent>();
-    show_point_panel(point_component);
+    show_torus_panel(entity);
   }
 
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {
-    auto& renderable_component =
-        entity.get_component<mge::RenderableComponent<GeometryVertex>>();
-    auto& tag_component = entity.get_component<mge::TagComponent>();
-    show_renderable_component(renderable_component);
+    show_renderable_component(entity);
   }
+}
+
+bool UILayer::on_new_entity(NewEntityEvent& event) {
+  m_entities.emplace(event.get_tag(), false);
+  return true;
+}
+
+bool UILayer::on_removed_entity(RemoveEntityEvent& event) {
+  m_entities.erase(event.get_tag());
+  return true;
+}
+
+bool UILayer::on_select_entity_by_tag(SelectEntityByTagEvent event) {
+  m_entities.at(event.get_tag()) = true;
+  return false;
+}
+
+bool UILayer::on_unselect_all_entities(UnSelectAllEntitiesEvent event) {
+  for (auto& [_, selected] : m_entities) {
+    selected = false;
+  }
+  m_displayed_entity = std::nullopt;
+  return false;
 }

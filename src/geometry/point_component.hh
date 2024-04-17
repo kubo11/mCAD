@@ -18,7 +18,7 @@ struct PointComponent {
   static std::unique_ptr<mge::VertexArray<GeometryVertex>> get_vertex_array();
   static const std::shared_ptr<mge::Shader>& get_shader();
 
-  void on_construct(entt::registry& registry, entt::entity entity);
+  void on_construct(mge::Entity& entity);
 
  private:
   static unsigned int s_new_id;

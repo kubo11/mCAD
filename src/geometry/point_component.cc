@@ -25,12 +25,11 @@ const std::shared_ptr<mge::Shader>& PointComponent::get_shader() {
                                     "solid" / "surface");
 }
 
-void PointComponent::on_construct(entt::registry& registry,
-                                  entt::entity entity) {
-  registry.emplace_or_replace<mge::TransformComponent>(entity);
-  registry
-      .emplace_or_replace<mge::RenderableComponent<GeometryVertex>>(
-          entity, PointComponent::get_shader(),
+void PointComponent::on_construct(mge::Entity& entity) {
+  entity.add_or_replace_component<mge::TransformComponent>();
+  entity
+      .add_or_replace_component<mge::RenderableComponent<GeometryVertex>>(
+          PointComponent::get_shader(),
           std::move(PointComponent::get_vertex_array()))
       .set_render_mode(mge::RenderMode::SURFACE);
 }

@@ -52,8 +52,8 @@ struct TorusComponent {
   template <mge::RenderMode mode>
   std::vector<unsigned int> generate_topology();
 
-  void on_construct(entt::registry& registry, entt::entity entity);
-  void on_update(entt::registry& registry, entt::entity entity);
+  void on_construct(mge::Entity& entity);
+  void on_update(mge::Entity& entity);
 
  private:
   static unsigned int s_new_id;
