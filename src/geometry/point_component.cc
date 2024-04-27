@@ -20,7 +20,7 @@ PointComponent::get_vertex_array() {
                                 4, 5, 1, 1, 0, 4, 3, 2, 6, 6, 7, 3});
 }
 
-const std::shared_ptr<mge::Shader>& PointComponent::get_shader() {
+std::shared_ptr<mge::Shader> PointComponent::get_shader() {
   return mge::ShaderSystem::acquire(fs::current_path() / "src" / "shaders" /
                                     "solid" / "surface");
 }

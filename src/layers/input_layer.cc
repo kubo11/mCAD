@@ -34,7 +34,7 @@ bool InputLayer::on_mouse_moved(mge::WindowMouseMovedEvent& event) {
   if (window.is_key_pressed(GLFW_KEY_LEFT_CONTROL)) {
     CursorMoveEvent cursor_event(event.get_end());
     m_send_event(cursor_event);
-    return true;
+    if (m_state != InputState::MOVE) return true;
   }
 
   switch (m_state) {
@@ -92,7 +92,7 @@ bool InputLayer::on_mouse_button_pressed(mge::WindowMousePressedEvent& event) {
       break;
     case InputState::DELETE:
       if (window.is_mouse_pressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        DeletePositionEvent delete_event(event.get_position());
+        DeleteEntityByPositionEvent delete_event(event.get_position());
         m_send_event(delete_event);
       }
       break;

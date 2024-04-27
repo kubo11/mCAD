@@ -27,11 +27,11 @@ class DeleteEntityByTagEvent : public mge::Event {
   const std::string& m_tag;
 };
 
-class DeletePositionEvent : public mge::Event {
+class DeleteEntityByPositionEvent : public mge::Event {
  public:
-  DeletePositionEvent(glm::vec2 position) : m_position(position) {}
+  DeleteEntityByPositionEvent(glm::vec2 position) : m_position(position) {}
   virtual inline const std::string name() const override {
-    return "DeletePositionEvent";
+    return "DeleteEntityByPositionEvent";
   }
   inline glm::vec2 get_position() const { return m_position; }
 

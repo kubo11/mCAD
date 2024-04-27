@@ -2,6 +2,7 @@
 #define MCAD_EVENTS_EVENTS_HH
 
 #include "add_event.hh"
+#include "bezier_event.h"
 #include "cursor_event.hh"
 #include "delete_event.hh"
 #include "input_state_event.hh"
