@@ -7,7 +7,7 @@
 
 class GridLayer : public mge::Layer {
  public:
-  GridLayer(mge::Camera& camera);
+  GridLayer(mge::Scene& scene);
   ~GridLayer() {}
 
   virtual void configure() override;
@@ -17,7 +17,7 @@ class GridLayer : public mge::Layer {
  private:
   std::unique_ptr<mge::VertexArray<GeometryVertex>> m_vertex_array = nullptr;
   std::shared_ptr<mge::Shader> m_shader;
-  mge::Camera& m_camera;
+  mge::Scene& m_scene;
 };
 
 #endif  // MCAD_GRID_LAYER_HH

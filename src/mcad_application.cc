@@ -9,7 +9,7 @@ MCadApplication::MCadApplication() {
       m_scene,
       glm::ivec2{m_main_window.get_width(), m_main_window.get_height()});
   push_layer(std::move(cad_layer));
-  //   push_layer(std::move(std::make_unique<GridLayer>(m_camera)));
+  push_layer(std::move(std::make_unique<GridLayer>(m_scene)));
   push_layer(std::move(std::make_unique<UILayer>()));
   push_layer(std::move(std::make_unique<InputLayer>()));
 }
