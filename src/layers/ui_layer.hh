@@ -35,6 +35,7 @@ class UILayer : public mge::Layer {
   void show_renderable_component(const mge::Entity& entity);
   void show_torus_panel(const mge::Entity& entity);
   void show_bezier_panel(const mge::Entity& entity);
+  void show_bezier_c2_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);

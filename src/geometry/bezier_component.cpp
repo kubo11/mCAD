@@ -9,9 +9,7 @@ fs::path BezierComponent::s_bezier_shader_path =
 
 BezierComponent::BezierComponent(const mge::EntityVector& control_points,
                                  mge::Entity& berenstein_polygon)
-    : m_control_points(control_points),
-      m_berenstein_polygon(berenstein_polygon),
-      m_detail(0) {}
+    : m_control_points(control_points), m_polygon(berenstein_polygon) {}
 
 void BezierComponent::on_construct(mge::Entity& entity) {
   auto vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
@@ -25,13 +23,12 @@ void BezierComponent::on_construct(mge::Entity& entity) {
   });
   vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
       generate_polygon_geometry(), GeometryVertex::get_vertex_attributes());
-  m_berenstein_polygon
+  m_polygon
       .add_or_replace_component<mge::RenderableComponent<GeometryVertex>>(
           mge::ShaderSystem::acquire(s_poly_shader_path),
           std::move(vertex_array))
       .disable();
-  //  m_berenstein_polygon.add_or_replace_component<SelectibleComponent>();
-  entity.add_owned_child(m_berenstein_polygon);
+  entity.add_owned_child(m_polygon);
   for (auto& control_point : m_control_points) {
     entity.add_child(control_point.get());
   }
@@ -42,17 +39,15 @@ void BezierComponent::on_update(mge::Entity& entity) {
       [this](auto& renderbale) {
         renderbale.get_vertex_array().update_vertices(generate_geometry());
       });
-  m_berenstein_polygon.patch<mge::RenderableComponent<GeometryVertex>>(
+  m_polygon.patch<mge::RenderableComponent<GeometryVertex>>(
       [this](auto& renderbale) {
         renderbale.get_vertex_array().update_vertices(
             generate_polygon_geometry());
       });
 }
 
-void BezierComponent::update_detail(unsigned int detail) { m_detail = detail; }
-
-void BezierComponent::set_berenstein_polygon(bool status) {
-  m_berenstein_polygon.patch<mge::RenderableComponent<GeometryVertex>>(
+void BezierComponent::set_polygon_status(bool status) {
+  m_polygon.patch<mge::RenderableComponent<GeometryVertex>>(
       [&status](auto& renderable) {
         if (status) {
           renderable.enable();
@@ -112,8 +107,7 @@ void BezierComponent::remove_control_point(mge::Entity& control_point) {
                          m_control_points.end());
 }
 
-bool BezierComponent::get_bezier_polygon_status() const {
-  return m_berenstein_polygon
-      .get_component<mge::RenderableComponent<GeometryVertex>>()
+bool BezierComponent::get_polygon_status() const {
+  return m_polygon.get_component<mge::RenderableComponent<GeometryVertex>>()
       .is_enabled();
 }

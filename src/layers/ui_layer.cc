@@ -1,6 +1,7 @@
 #include "ui_layer.hh"
 #include "../events/events.hh"
 #include "../geometry/bezier_component.hh"
+#include "../geometry/bezier_component_c2.hh"
 #include "../input_state.hh"
 #include "cad_layer.hh"
 
@@ -317,6 +318,15 @@ void UILayer::show_tools_panel() {
     AddBezierEvent bezier_event;
     m_send_event(bezier_event);
   }
+  if (ImGui::Button("bezier C2 berenstein")) {
+    AddBezierEvent bezier_event;
+    m_send_event(bezier_event);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("bezier C2 b-spline")) {
+    AddBezierEvent bezier_event;
+    m_send_event(bezier_event);
+  }
 }
 
 void UILayer::show_entities_list_panel() {
@@ -375,6 +385,10 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
     show_bezier_panel(entity);
   }
 
+  if (entity.has_component<BezierComponentC2>()) {
+    show_bezier_c2_panel(entity);
+  }
+
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>() &&
       entity.has_component<TorusComponent>()) {
     show_renderable_component(entity);
@@ -387,6 +401,8 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
   }
   ImGui::PopStyleColor();
 }
+
+void UILayer::show_bezier_c2_panel(const mge::Entity& entity) {}
 
 bool UILayer::on_new_entity(NewEntityEvent& event) {
   m_entities.emplace(event.get_tag(), false);
