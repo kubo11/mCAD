@@ -1,678 +1,679 @@
 #include "cad_layer.hh"
 
-#include "../geometry/bezier_component.hh"
-#include "../geometry/cursor_component.hh"
-#include "../geometry/cursor_vertex.hh"
-#include "../geometry/mass_center_component.hh"
-#include "../geometry/point_component.hh"
-#include "../geometry/selectible_component.hh"
-#include "../geometry/torus_component.hh"
-
-const std::string CadLayer::s_cursor_tag = "cursor";
-const std::string CadLayer::s_mass_center_tag = "mass_center";
+#include "../components/bezier_component.hh"
+#include "../components/color_component.hh"
+#include "../components/mass_center_component.hh"
+#include "../components/point_component.hh"
+#include "../components/selectible_component.hh"
+#include "../components/torus_component.hh"
+#include "../vertices/cursor_vertex.hh"
 
 CadLayer::CadLayer(mge::Scene& scene, const glm::ivec2& window_size)
     : m_scene(scene),
-      m_cursor(m_scene.create_entity(CadLayer::s_cursor_tag)),
-      m_mass_center(m_scene.create_entity(CadLayer::s_mass_center_tag)),
-      m_selected(),
+      m_cursor(m_scene.create_entity()),
+      m_mass_center(m_scene.create_entity()),
       m_window_size(window_size) {}
 
-CadLayer::~CadLayer() {
-  m_scene.disconnect_all<mge::TransformComponent>();
-  m_scene.disconnect_all<TorusComponent>();
-  m_scene.disconnect_all<PointComponent>();
-  m_scene.disconnect_all<CursorComponent>();
-  m_scene.disconnect_all<MassCenterComponent>();
-  m_scene.disconnect_all<SelectibleComponent>();
-  m_scene.disconnect_all<BezierComponent>();
-}
+CadLayer::~CadLayer() { m_scene.clear(); }
 
 void CadLayer::configure() {
-  m_scene.on_update<mge::TransformComponent, &CadLayer::on_transform_update>(
-      *this);
+  // Pipelines
+  auto base_shader_path = fs::current_path() / "src" / "shaders";
+  mge::RenderPipelineBuilder pipeline_builder;
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "solid" / "surface"))
+      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+        return camera.get_projection_matrix() * camera.get_view_matrix();
+      });
+  m_geometry_solid_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::TRIANGLE));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "solid" / "wireframe"))
+      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+        return camera.get_projection_matrix() * camera.get_view_matrix();
+      });
+  m_geometry_wireframe_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "cursor"))
+      .add_uniform_update<glm::mat4>("projection_view",
+                                     [&camera = m_scene.get_current_camera()]() {
+                                       return camera.get_projection_matrix() * camera.get_view_matrix();
+                                     })
+      .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
+  m_cursor_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::POINT));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier"))
+      .add_uniform_update<glm::mat4>("projection_view",
+                                     [&camera = m_scene.get_current_camera()]() {
+                                       return camera.get_projection_matrix() * camera.get_view_matrix();
+                                     })
+      .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; })
+      .set_patch_count(4);
+  m_bezier_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::PATCH));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier_poly"))
+      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+        return camera.get_projection_matrix() * camera.get_view_matrix();
+      });
+  m_bezier_polygon_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE_STRIP));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "point"))
+      .add_uniform_update<glm::mat4>("projection_view",
+                                     [&camera = m_scene.get_current_camera()]() {
+                                       return camera.get_projection_matrix() * camera.get_view_matrix();
+                                     })
+      .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
+  auto point_vertices =
+      std::vector<GeometryVertex>{{{-1.0f, 1.0f, 0.0f}}, {{-1.0f, -1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},
+                                  {{-1.0f, 1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},  {{1.0f, 1.0f, 0.0f}}};
+  auto point_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  point_vertex_buffer->bind();
+  point_vertex_buffer->copy(point_vertices);
+  point_vertex_buffer->unbind();
+  auto point_instance_buffer = std::make_unique<mge::Buffer<PointInstancedVertex>>();
+  auto point_vertex_array = std::make_unique<mge::InstancedVertexArray<GeometryVertex, PointInstancedVertex>>(
+      std::move(point_vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(point_instance_buffer),
+      PointInstancedVertex::get_vertex_attributes());
+  m_point_pipeline = std::move(pipeline_builder.build_instanced<GeometryVertex, PointInstancedVertex>(
+      mge::DrawPrimitiveType::TRIANGLE, std::move(point_vertex_array)));
 
-  m_scene.on_construct<TorusComponent, &TorusComponent::on_construct>();
-  m_scene.on_update<TorusComponent, &TorusComponent::on_update>();
+  // Cursor
+  m_cursor.add_component<mge::TransformComponent>(glm::vec3{0.0f, 0.0f, 0.0f});
+  auto cursor_vertex = std::vector<GeometryVertex>{{{0.0f, 0.0f, 0.0f}}};
+  auto cursor_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  cursor_vertex_buffer->bind();
+  cursor_vertex_buffer->copy(cursor_vertex);
+  cursor_vertex_buffer->unbind();
+  auto cursor_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(cursor_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  m_cursor.add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_cursor_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(cursor_vertex_array), [&cursor = m_cursor](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::mat4>(
+            "model", [&cursor]() { return cursor.get_component<mge::TransformComponent>().get_model_mat(); });
+      });
 
-  m_scene.on_construct<PointComponent, &PointComponent::on_construct>();
-
-  m_scene.on_construct<BezierComponent, &BezierComponent::on_construct>();
-  m_scene.on_update<BezierComponent, &BezierComponent::on_update>();
-
-  m_scene.on_construct<CursorComponent, &CursorComponent::on_construct>();
-
-  m_scene
-      .on_construct<MassCenterComponent, &MassCenterComponent::on_construct>();
-
-  m_scene.on_construct<SelectibleComponent, &CadLayer::on_selectible_construct>(
-      *this);
-  m_scene.on_update<SelectibleComponent,
-                    &SelectibleComponent::on_update<GeometryVertex>>();
-  m_scene.on_update<SelectibleComponent, &CadLayer::on_selectible_update>(
-      *this);
-  m_scene.on_destroy<SelectibleComponent, &CadLayer::on_selectible_destroy>(
-      *this);
-
-  m_cursor.add_component<CursorComponent>();
+  // Mass center
+  m_mass_center
+      .add_component<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+          mge::InstancedRenderPipelineMap<GeometryVertex, PointInstancedVertex>{
+              {mge::RenderMode::SOLID, *m_point_pipeline}},
+          mge::RenderMode::SOLID, PointInstancedVertex{{0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}})
+      .disable();
+  m_mass_center.add_component<ColorComponent>(glm::vec3{1.0f, 0.0f, 0.0f});
   m_mass_center.add_component<MassCenterComponent>();
+
+  // Camera events
+  mge::AddEventListener(mge::CameraEvents::CameraAngleChanged, CadLayer::on_camera_angle_changed, this);
+  mge::AddEventListener(mge::CameraEvents::CameraPositionChanged, CadLayer::on_camera_position_changed, this);
+  mge::AddEventListener(mge::CameraEvents::CameraZoom, CadLayer::on_camera_zoom, this);
+  // Window events
+  mge::AddEventListener(mge::WindowEvents::WindowFramebufferResized, CadLayer::on_window_framebuffer_resized, this);
+  // Entity events
+  mge::AddEventListener(mge::EntityEvents::Delete, CadLayer::on_delete_entity_by_id, this);
+  mge::AddEventListener(mge::EntityEvents::QueryById, CadLayer::on_query_entity_by_id, this);
+  mge::AddEventListener(mge::EntityEvents::QueryByPosition, CadLayer::on_query_entity_by_position, this);
+  mge::AddEventListener(mge::EntityEvents::QueryByTag, CadLayer::on_query_entity_by_tag, this);
+  // Point events
+  AddEventListener(PointEvents::Add, CadLayer::on_add_point, this);
+  // Torus events
+  AddEventListener(TorusEvents::Add, CadLayer::on_add_torus, this);
+  AddEventListener(TorusEvents::RadiusUpdated, CadLayer::on_torus_radius_updated, this);
+  AddEventListener(TorusEvents::GridDensityUpdated, CadLayer::on_torus_grid_density_updated, this);
+  // Bezier events
+  AddEventListener(BezierEvents::Add, CadLayer::on_add_bezier, this);
+  AddEventListener(BezierEvents::AddControlPoint, CadLayer::on_add_control_point, this);
+  AddEventListener(BezierEvents::DeleteControlPoint, CadLayer::on_delete_control_point, this);
+  AddEventListener(BezierEvents::UpdateBerensteinPolygonState, CadLayer::on_update_berenstein_polygon_state, this);
+  // Cursor events
+  AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
+  // Transform events
+  AddEventListener(TransformEvents::TranslateToCursor, CadLayer::on_translate_to_cursor, this);
+  AddEventListener(TransformEvents::RelativeScale, CadLayer::on_relative_scale, this);
+  AddEventListener(TransformEvents::RelativeRotate, CadLayer::on_relative_rotate, this);
+  AddEventListener(TransformEvents::Translate, CadLayer::on_translate, this);
+  AddEventListener(TransformEvents::Scale, CadLayer::on_scale, this);
+  AddEventListener(TransformEvents::Rotate, CadLayer::on_rotate, this);
+  // Tag events
+  mge::AddEventListener(mge::TagEvents::Update, CadLayer::on_tag_updated, this);
+  // Render mode events
+  mge::AddEventListener(mge::RenderModeEvents::RenderModeUpdated, CadLayer::on_render_mode_updated, this);
+  // Selection Events
+  AddEventListener(SelectionEvents::SelectionUpdate, CadLayer::on_selection_updated, this);
+  AddEventListener(SelectionEvents::UnselectAllEntities, CadLayer::on_unselect_all_entities, this);
 }
 
 void CadLayer::update() {
-  auto& camera = m_scene.get_current_camera();
-  m_scene.draw<GeometryVertex>([&camera, this](
-                                   std::shared_ptr<mge::Shader> shader,
-                                   mge::Entity& entity) {
-    shader->set_uniform("projection_view", camera.get_projection_view_matrix());
-    if (entity.has_component<PointComponent>()) {
-      entity.patch<mge::TransformComponent>([](auto& transform) {
-        transform.set_scale(glm::vec3(PointComponent::s_scale));
-      });
-    }
-    if (entity.has_component<BezierComponent>()) {
-      shader->set_uniform("window_size", m_window_size);
-      glPatchParameteri(GL_PATCH_VERTICES, 4);
-    }
-    if (entity.has_component<mge::TransformComponent>()) {
-      auto& transform = entity.get_component<mge::TransformComponent>();
-      shader->set_uniform("model", transform.get_model_mat());
-    }
-    auto& renderable =
-        entity.get_component<mge::RenderableComponent<GeometryVertex>>();
-    shader->set_uniform("color", renderable.get_color());
-  });
-  m_scene.draw<CursorVertex>([&camera](std::shared_ptr<mge::Shader> shader,
-                                       mge::Entity& entity) {
-    auto& transform = entity.get_component<mge::TransformComponent>();
-    shader->set_uniform("projection_view", camera.get_projection_view_matrix());
-    shader->set_uniform("model", transform.get_model_mat());
-  });
-}
-
-void CadLayer::handle_event(mge::Event& event, float dt) {
-  mge::Event::try_handler<mge::CameraAngleEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_camera_angle_modified));
-  mge::Event::try_handler<mge::CameraPositionEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_camera_position_modified));
-  mge::Event::try_handler<mge::CameraZoomEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_camera_zoom));
-
-  mge::Event::try_handler<SelectEntityByTagEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_select_entity_by_tag));
-  mge::Event::try_handler<SelectEntityByPositionEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_select_entity_by_position));
-  mge::Event::try_handler<UnSelectEntityByTagEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_unselect_entity_by_tag));
-  mge::Event::try_handler<UnSelectAllEntitiesEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_unselect_all_entities));
-
-  mge::Event::try_handler<AddPointEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_add_point_event));
-  mge::Event::try_handler<AddTorusEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_add_torus_event));
-  mge::Event::try_handler<AddBezierEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_add_bezier_event));
-
-  mge::Event::try_handler<DeleteEntityByPositionEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_delete_entity_by_position));
-  mge::Event::try_handler<DeleteEntityByTagEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_delete_entity_by_tag));
-
-  mge::Event::try_handler<CursorMoveEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_cursor_move_event));
-
-  mge::Event::try_handler<MoveByCursorEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_move_by_cursor_event));
-  mge::Event::try_handler<ScaleByCursorEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_scale_by_cursor_event));
-  mge::Event::try_handler<RotateByCursorEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_rotate_by_cursor_event));
-  mge::Event::try_handler<MoveByUIEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_move_by_ui_event));
-  mge::Event::try_handler<ScaleByUIEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_scale_by_ui_event));
-  mge::Event::try_handler<RotateByUIEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_rotate_by_ui_event));
-
-  mge::Event::try_handler<AddControlPointByPositionEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_add_control_point_by_position));
-  mge::Event::try_handler<AddControlPointByTagEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_add_control_point_by_tag));
-  mge::Event::try_handler<RemoveControlPointByPositionEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_remove_control_point_by_position));
-  mge::Event::try_handler<RemoveControlPointByTagEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_remove_control_point_by_tag));
-
-  mge::Event::try_handler<RenameEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_rename_event));
-  mge::Event::try_handler<TorusUpdatedEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_torus_updated));
-  mge::Event::try_handler<mge::RenderModeUpdatedEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_render_mode_updated));
-
-  mge::Event::try_handler<mge::RenderModeUpdatedEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_render_mode_updated));
-
-  mge::Event::try_handler<ShowBerensteinPolygonEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_show_berenstein_polygon));
-  mge::Event::try_handler<QueryEntityByTagEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_query_entity_by_tag));
-
-  mge::Event::try_handler<mge::WindowFramebufferResizedEvent>(
-      event, BIND_EVENT_HANDLER(CadLayer::on_window_framebuffer_resized));
-}
-
-bool CadLayer::on_select_entity_by_tag(SelectEntityByTagEvent& event) {
-  if (m_scene.get_entity(event.get_tag())
-          .get_component<SelectibleComponent>()
-          .is_selected()) {
-    return true;
+  for (auto id : m_to_be_destroyed) {
+    m_scene.destroy_entity(id);
   }
+  m_to_be_destroyed.clear();
 
-  add_selected(m_scene.get_entity(event.get_tag()));
-  return true;
-}
-
-bool CadLayer::on_select_entity_by_position(
-    SelectEntityByPositionEvent& event) {
-  auto entity = get_closest_selectible_entity(event.get_position());
-  if (entity.has_value()) {
-    if (entity.value()
-            .get()
-            .get_component<SelectibleComponent>()
-            .is_selected()) {
-      return true;
-    }
-
-    add_selected(entity.value().get());
-    SelectEntityByTagEvent select_event(
-        entity->get().get_component<mge::TagComponent>());
-    m_send_event(select_event);
-  } else {
-    remove_all_selected();
-    UnSelectAllEntitiesEvent unselect_event;
-    m_send_event(unselect_event);
-  }
-  return true;
-}
-
-bool CadLayer::on_unselect_entity_by_tag(UnSelectEntityByTagEvent& event) {
-  if (!m_scene.get_entity(event.get_tag())
-           .get_component<SelectibleComponent>()
-           .is_selected()) {
-    return true;
-  }
-
-  remove_selected(m_scene.get_entity(event.get_tag()));
-  return true;
-}
-
-bool CadLayer::on_unselect_all_entities(UnSelectAllEntitiesEvent& event) {
-  remove_all_selected();
-  return true;
-}
-
-bool CadLayer::on_camera_angle_modified(mge::CameraAngleEvent& event) {
-  m_scene.get_current_camera().add_azimuth(event.get_azimuth());
-  m_scene.get_current_camera().add_elevation(event.get_elevation());
-  return true;
-}
-
-bool CadLayer::on_camera_position_modified(mge::CameraPositionEvent& event) {
-  m_scene.get_current_camera().move(event.get_pos());
-  return true;
-}
-
-bool CadLayer::on_camera_zoom(mge::CameraZoomEvent& event) {
-  m_scene.get_current_camera().zoom(event.get_zoom());
-  m_cursor.patch<mge::TransformComponent>(
-      [&event](auto& transform) { transform.scale(event.get_zoom()); });
-  PointComponent::s_scale *= event.get_zoom();
-  return true;
-}
-
-bool CadLayer::on_add_point_event(AddPointEvent& event) {
-  auto& entity = m_scene.create_entity(PointComponent::get_new_name());
-  entity.template add_component<PointComponent>();
-  entity.template patch<mge::TransformComponent>([this](auto& transform) {
-    transform.set_position(
-        m_cursor.get_component<mge::TransformComponent>().get_position());
-  });
-  entity.template add_component<SelectibleComponent>();
-  return true;
-}
-
-bool CadLayer::on_add_torus_event(AddTorusEvent& event) {
-  auto& entity = m_scene.create_entity(TorusComponent::get_new_name());
-  entity.template add_component<TorusComponent>();
-  entity.template patch<mge::TransformComponent>([this](auto& transform) {
-    transform.set_position(
-        m_cursor.get_component<mge::TransformComponent>().get_position());
-  });
-  entity.template add_component<SelectibleComponent>();
-  return true;
-}
-
-bool CadLayer::on_add_bezier_event(AddBezierEvent& event) {
-  for (auto& selected : m_selected) {
-    if (!selected.get().has_component<PointComponent>()) {
-      return true;
-    }
-  }
-
-  auto& entity = m_scene.create_entity(BezierComponent::get_new_name());
-  auto& polygon_entity = m_scene.create_entity(
-      "polygon_" + entity.get_component<mge::TagComponent>().get_tag());
-  entity.template add_component<BezierComponent>(m_selected, polygon_entity);
-  entity.template add_component<SelectibleComponent>();
-  return true;
-}
-
-bool CadLayer::on_delete_entity_by_position(
-    DeleteEntityByPositionEvent& event) {
-  auto entity = get_closest_selectible_entity(event.get_position());
-  if (entity.has_value()) {
-    if (!entity->get().get_parents().empty()) {
-      return true;
-    }
-    remove_selected(entity.value());
-    auto& tag = entity.value().get().get_component<mge::TagComponent>();
-    m_scene.destroy_entity(tag);
-  }
-  return true;
-}
-
-bool CadLayer::on_cursor_move_event(CursorMoveEvent& event) {
-  m_cursor.patch<mge::TransformComponent>([this, &event](auto& transform) {
-    transform.set_position(unproject_point(event.get_position()));
-  });
-  return true;
-}
-
-bool CadLayer::on_rename_event(RenameEvent& event) {
-  bool status = m_scene.rename_entity(event.get_old_tag(), event.get_new_tag());
-  event.set_status(status);
-  return true;
-}
-
-bool CadLayer::on_move_by_cursor_event(MoveByCursorEvent& event) {
-  if (m_selected.empty()) {
-    return true;
-  }
-
-  glm::vec3 center =
-      m_mass_center.get_component<mge::TransformComponent>().get_position();
-  glm::vec3 offset =
-      m_cursor.get_component<mge::TransformComponent>().get_position() - center;
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([&offset](auto& entity) {
-      if (!entity.template has_component<mge::TransformComponent>()) {
-        return;
-      }
-      entity.template patch<mge::TransformComponent>(
-          [&offset](auto& transform) { transform.translate(offset); });
-    });
-    if (selected.get().has_component<BezierComponent>()) {
-      selected.get().patch<BezierComponent>([](auto& _) {});
-    }
-  }
-  return true;
-}
-
-bool CadLayer::on_scale_by_cursor_event(ScaleByCursorEvent& event) {
-  if (m_selected.empty()) {
-    return true;
-  }
-
-  glm::vec3 center =
-      m_mass_center.get_component<mge::TransformComponent>().get_position();
-  float scale_factor = glm::distance(center, unproject_point(event.get_end())) /
-                       glm::distance(center, unproject_point(event.get_beg()));
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([&scale_factor](auto& entity) {
-      if (!entity.template has_component<mge::TransformComponent>()) {
-        return;
-      }
-      entity.template patch<mge::TransformComponent>(
-          [&scale_factor](auto& transform) { transform.scale(scale_factor); });
-    });
-    if (selected.get().has_component<BezierComponent>()) {
-      selected.get().patch<BezierComponent>([](auto& _) {});
-    }
-  }
-  return true;
-}
-
-bool CadLayer::on_rotate_by_cursor_event(RotateByCursorEvent& event) {
-  if (m_selected.empty()) {
-    return true;
-  }
-
-  glm::vec3 center =
-      m_mass_center.get_component<mge::TransformComponent>().get_position();
-  glm::vec2 center_ss =
-      m_scene.get_current_camera().get_projection_view_matrix() *
-      glm::vec4(center, 1.0f);
-  float angle =
-      glm::asin(
-          glm::cross(
-              glm::vec3(glm::normalize(event.get_beg() - center_ss), 0.0f),
-              glm::vec3(glm::normalize(event.get_end() - center_ss), 0.0f)))
-          .z;
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([&angle, &center, &event](auto& entity) {
-      if (!entity.template has_component<mge::TransformComponent>()) {
-        return;
-      }
-      entity.template patch<mge::TransformComponent>(
-          [&angle, &center, &event](auto& transform) {
-            transform.rotate(angle, event.get_axis());
-            transform.set_position(center +
-                                   glm::angleAxis(angle, event.get_axis()) *
-                                       (transform.get_position() - center));
-          });
-    });
-    if (selected.get().has_component<BezierComponent>()) {
-      selected.get().patch<BezierComponent>([](auto& _) {});
-    }
-  }
-  return true;
-}
-
-bool CadLayer::on_move_by_ui_event(MoveByUIEvent& event) {
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([&event](auto& entity) {
-      if (!entity.template has_component<mge::TransformComponent>()) {
-        return;
-      }
-      entity.template patch<mge::TransformComponent>([&event](auto& transform) {
-        transform.set_position(event.get_offset());
-      });
-    });
-  }
-  return true;
-}
-
-bool CadLayer::on_scale_by_ui_event(ScaleByUIEvent& event) {
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([&event](auto& entity) {
-      if (!entity.template has_component<mge::TransformComponent>()) {
-        return;
-      }
-      entity.template patch<mge::TransformComponent>([&event](auto& transform) {
-        transform.set_scale(event.get_scale());
-      });
-    });
-  }
-  return true;
-}
-
-bool CadLayer::on_rotate_by_ui_event(RotateByUIEvent& event) {
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([&event](auto& entity) {
-      if (!entity.template has_component<mge::TransformComponent>()) {
-        return;
-      }
-      entity.template patch<mge::TransformComponent>([&event](auto& transform) {
-        transform.set_rotation(event.get_rotation());
-      });
-    });
-  }
-  return true;
-}
-
-bool CadLayer::on_torus_updated(TorusUpdatedEvent& event) {
-  auto& entity = m_scene.get_entity(event.get_tag());
-  entity.patch<TorusComponent>([&event](auto& torus) {
-    torus.set_inner_radius(event.get_inner_radius());
-    torus.set_outer_radius(event.get_outer_radius());
-    torus.set_horizontal_density(event.get_horizontal_density());
-    torus.set_vertical_density(event.get_vertical_density());
-  });
-  return true;
-}
-
-bool CadLayer::on_render_mode_updated(mge::RenderModeUpdatedEvent& event) {
-  auto& entity = m_scene.get_entity(event.get_tag());
-  entity.patch<mge::RenderableComponent<GeometryVertex>>(
-      [&event](auto& renderable) {
-        renderable.set_render_mode(event.get_render_mode());
-      });
-  return true;
+  m_geometry_wireframe_pipeline->run();
+  m_geometry_solid_pipeline->run();
+  m_bezier_pipeline->run();
+  m_bezier_polygon_pipeline->run();
+  m_point_pipeline->run();
+  m_cursor_pipeline->run();
 }
 
 glm::vec3 CadLayer::unproject_point(glm::vec2 pos) const {
-  glm::vec4 unprojected_point =
-      glm::inverse(m_scene.get_current_camera().get_projection_view_matrix()) *
-      glm::vec4(pos, 0.0f, 1.0f);
+  auto& camera = m_scene.get_current_camera();
+  auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
+  glm::vec4 unprojected_point = glm::inverse(proj_view) * glm::vec4(pos, 0.0f, 1.0f);
   return glm::vec3(unprojected_point) / unprojected_point.w;
 }
 
-mge::OptionalEntity CadLayer::get_closest_selectible_entity(
-    glm::vec2 position) {
-  float min_dist = 10e7;
-  std::string closest_tag;
+mge::OptionalEntity CadLayer::get_closest_selectible_entity(glm::vec2 screen_space_position) const {
+  float min_dist = 0.3f;
+  mge::EntityId closest_id = mge::EntityId(-1);
   auto& camera = m_scene.get_current_camera();
-  m_scene.foreach<>(
-      entt::get<mge::TransformComponent, mge::TagComponent,
-                SelectibleComponent>,
-      entt::exclude<>, [&](auto& entity) {
-        auto& transform =
-            entity.template get_component<mge::TransformComponent>();
-        auto dist = glm::distance(
-            position, glm::vec2(camera.get_projection_view_matrix() *
-                                glm::vec4(transform.get_position(), 1.0f)));
-        if (dist < min_dist && dist < 0.03f) {
-          min_dist = dist;
-          auto& tag = entity.template get_component<mge::TagComponent>();
-          closest_tag = tag.get_tag();
-        }
-      });
+  auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
+  m_scene.foreach<>(entt::get<mge::TransformComponent, SelectibleComponent>, entt::exclude<>, [&](auto& entity) {
+    auto& transform = entity.template get_component<mge::TransformComponent>();
+    auto entity_position = proj_view * glm::vec4(transform.get_position(), 1.0f);
+    auto corrected_entity_position = glm::vec3(entity_position) / entity_position.w;
+    auto dist = glm::distance(screen_space_position, glm::vec2(corrected_entity_position));
+    if (dist < min_dist) {
+      min_dist = dist;
+      closest_id = entity.get_id();
+    }
+  });
 
-  if (!closest_tag.empty()) {
-    return m_scene.get_entity(closest_tag);
+  if (m_scene.contains(closest_id)) {
+    return m_scene.get_entity(closest_id);
   }
 
   return std::nullopt;
 }
 
-// FIXME: redundant calculations when multiple children are updated
-void CadLayer::on_transform_update(entt::registry& registry,
-                                   entt::entity entt_entity) {
-  auto& entity =
-      m_scene.get_entity(registry.get<mge::TagComponent>(entt_entity));
-  for (auto& parent : entity.get_parents()) {
-    if (!parent.get().has_component<BezierComponent>()) {
-      continue;
-    }
-
-    parent.get().patch<BezierComponent>([](auto& bezier) {});
-  }
-
-  if (!entity.has_component<SelectibleComponent>() ||
-      !entity.get_component<SelectibleComponent>().is_selected()) {
-    return;
-  }
-
-  m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
-    mass_center.update_mass_center(m_selected, m_mass_center);
-  });
-}
-
-void CadLayer::on_selectible_construct(entt::registry& registry,
-                                       entt::entity entt_entity) {
-  NewEntityEvent event(registry.get<mge::TagComponent>(entt_entity));
-  m_send_event(event);
-}
-
-void CadLayer::on_selectible_update(entt::registry& registry,
-                                    entt::entity entity) {
-  bool selection = registry.get<SelectibleComponent>(entity).is_selected();
-  if (selection) {
-    SelectEntityByTagEvent event(registry.get<mge::TagComponent>(entity));
-    m_send_event(event);
-  } else {
-    UnSelectEntityByTagEvent event(registry.get<mge::TagComponent>(entity));
-    m_send_event(event);
-  }
-}
-
-void CadLayer::on_selectible_destroy(entt::registry& registry,
-                                     entt::entity entt_entity) {
-  RemoveEntityEvent event(registry.get<mge::TagComponent>(entt_entity));
-  m_send_event(event);
-}
-
-bool CadLayer::on_show_berenstein_polygon(ShowBerensteinPolygonEvent& event) {
-  m_scene.get_entity(event.get_tag())
-      .patch<BezierComponent>([&event](auto& bezier) {
-        bezier.set_berenstein_polygon(event.get_status());
+void CadLayer::update_mass_center() {
+  m_mass_center.patch<MassCenterComponent>([](auto& center) { center.update_position(); });
+  auto mass_center_position = m_mass_center.template get_component<MassCenterComponent>().get_position();
+  auto mass_center_color = m_mass_center.template get_component<ColorComponent>().get_color();
+  m_mass_center.template patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+      [&mass_center_position, &mass_center_color](auto& renderable) {
+        renderable.set_instance_data({mass_center_position, mass_center_color});
       });
-  return true;
 }
 
-bool CadLayer::on_query_entity_by_tag(QueryEntityByTagEvent& event) {
-  event.set_entity(m_scene.get_entity(event.get_tag()));
-  return true;
+void CadLayer::update_bezier(mge::Entity& entity) {
+  auto& bezier = entity.get_component<BezierComponent>();
+  entity.patch<mge::RenderableComponent<GeometryVertex>>([&bezier](auto& renderable) {
+    auto vertices = bezier.generate_geometry();
+    auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+    vertex_buffer.bind();
+    vertex_buffer.copy(vertices);
+    vertex_buffer.unbind();
+  });
+  entity.patch<BezierComponent>([](auto& bezier) {
+    bezier.template get_berenstein_polygon().template patch<mge::RenderableComponent<GeometryVertex>>(
+        [&bezier](auto& renderable) {
+          auto vertices = bezier.generate_polygon_geometry();
+          auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+          vertex_buffer.bind();
+          vertex_buffer.copy(vertices);
+          vertex_buffer.unbind();
+        });
+  });
 }
 
-bool CadLayer::on_add_control_point_by_position(
-    AddControlPointByPositionEvent& event) {
-  auto point = get_closest_selectible_entity(event.get_position());
-  if (point.has_value() && point->get().has_component<PointComponent>()) {
-    auto& bezier = m_scene.get_entity(event.get_bezier_tag());
-    if (bezier.get_component<SelectibleComponent>().is_selected()) {
-      point->get().patch<SelectibleComponent>(
-          [](auto& selectible) { selectible.set_selection(true); });
+void CadLayer::update_parent_bezier(mge::Entity& entity) {
+  for (auto& parent : entity.get_parents()) {
+    if (parent.get().has_component<BezierComponent>()) {
+      update_bezier(parent.get());
     }
-    bezier.add_child(point->get());
-    bezier.patch<BezierComponent>([&point](auto& component) {
-      component.add_control_point(point.value());
+  }
+}
+
+void CadLayer::update_point(mge::Entity& entity) {
+  auto point_position = entity.get_component<mge::TransformComponent>().get_position();
+  auto point_color = entity.get_component<ColorComponent>().get_color();
+  entity.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+      [&point_position, &point_color](auto& renderable) {
+        renderable.set_instance_data({point_position, point_color});
+      });
+}
+
+bool CadLayer::on_camera_angle_changed(mge::CameraAngleChangedEvent& event) {
+  m_scene.get_current_camera().rotate(event.yaw, event.pitch, event.get_dt());
+  return true;
+}
+
+bool CadLayer::on_camera_position_changed(mge::CameraPositionChangedEvent& event) {
+  m_scene.get_current_camera().move({event.offset, 0.0f}, event.get_dt());
+  return true;
+}
+
+bool CadLayer::on_camera_zoom(mge::CameraZoomEvent& event) {
+  m_scene.get_current_camera().zoom(event.zoom, event.get_dt());
+  if (m_scene.get_current_camera().get_fov() > 1.0f && m_scene.get_current_camera().get_fov() < 45.0f) {
+    m_cursor.patch<mge::TransformComponent>([&event](auto& transform) { transform.scale(event.zoom); });
+    PointComponent::s_scale *= event.zoom;
+  }
+  return true;
+}
+
+bool CadLayer::on_window_framebuffer_resized(mge::WindowFramebufferResizedEvent& event) {
+  m_window_size = {event.width, event.height};
+  return true;
+}
+
+bool CadLayer::on_delete_entity_by_id(mge::DeleteEntityEvent& event) {
+  if (!m_scene.contains(event.id)) return false;
+  auto& entity = m_scene.get_entity(event.id);
+  if (!entity.get_parents().empty() && entity.get_parents().begin()->get() != m_mass_center) {
+    return false;
+  }
+
+  // entity.run_and_propagate([&event](auto& entity) {
+  //   auto selection_event = SelectionUpdateEvent{event.id, false};
+  //   SendEvent(selection_event);
+  // });
+  // m_scene.destroy_entity(event.id);
+  m_to_be_destroyed.push_back(event.id);
+
+  return true;
+}
+
+bool CadLayer::on_query_entity_by_id(mge::QueryEntityByIdEvent& event) {
+  if (!m_scene.contains(event.id)) return false;
+  event.entity = m_scene.get_entity(event.id);
+  return true;
+}
+
+bool CadLayer::on_query_entity_by_position(mge::QueryEntityByPositionEvent& event) {
+  event.entity = get_closest_selectible_entity(event.screen_space_position);
+  return event.entity.has_value();
+}
+
+bool CadLayer::on_query_entity_by_tag(mge::QueryEntityByTagEvent& event) {
+  m_scene.foreach<>(entt::get<mge::TagComponent>, entt::exclude<>, [&](auto& entity) {
+    auto& tag = entity.template get_component<mge::TagComponent>();
+    if (tag.get_tag() == event.tag) {
+      event.entity = m_scene.get_entity(entity.get_id());
+    }
+  });
+  return event.entity.has_value();
+}
+
+bool CadLayer::on_add_point(AddPointEvent& event) {
+  auto& entity = m_scene.create_entity();
+  entity.template add_component<PointComponent>();
+  entity.template add_component<mge::TagComponent>(PointComponent::get_new_name());
+  entity.template add_component<mge::TransformComponent>(
+      m_cursor.get_component<mge::TransformComponent>().get_position());
+  auto point_position = entity.get_component<mge::TransformComponent>().get_position();
+  entity.template add_component<SelectibleComponent>();
+  entity.template add_component<ColorComponent>();
+  auto position = entity.get_component<mge::TransformComponent>().get_position();
+  auto color = entity.get_component<ColorComponent>().get_color();
+  entity.template add_component<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+      mge::InstancedRenderPipelineMap<GeometryVertex, PointInstancedVertex>{
+          {mge::RenderMode::SOLID, *m_point_pipeline}},
+      mge::RenderMode::SOLID, PointInstancedVertex(position, color));
+  m_point_pipeline->update_instance_buffer();
+  mge::AddedEntityEvent add_event(entity.get_id());
+  SendEngineEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_add_torus(AddTorusEvent& event) {
+  auto& entity = m_scene.create_entity();
+  entity.template add_component<TorusComponent>(event.inner_radius, event.outer_radius, event.inner_density,
+                                                event.outer_density);
+  entity.template add_component<mge::TagComponent>(TorusComponent::get_new_name());
+  entity.template add_component<mge::TransformComponent>(
+      m_cursor.get_component<mge::TransformComponent>().get_position());
+  entity.patch<mge::TransformComponent>([](auto& transform) { transform.set_scale({0.1f, 0.1f, 0.1f}); });
+  entity.template add_component<SelectibleComponent>();
+  entity.template add_component<ColorComponent>();
+  auto vertices = entity.get_component<TorusComponent>().generate_geometry();
+  auto vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  vertex_buffer->bind();
+  vertex_buffer->copy(vertices);
+  vertex_buffer->unbind();
+  auto indices = entity.get_component<TorusComponent>().generate_topology<mge::RenderMode::WIREFRAME>();
+  auto element_buffer = std::make_unique<mge::ElementBuffer>(mge::ElementBuffer::Type::ELEMENT_ARRAY);
+  element_buffer->bind();
+  element_buffer->copy(indices);
+  element_buffer->unbind();
+  auto vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(element_buffer));
+  auto dupa = entity.get_component<mge::TransformComponent>().get_model_mat();
+  entity.template add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_geometry_wireframe_pipeline},
+                                             {mge::RenderMode::SOLID, *m_geometry_solid_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(vertex_array), [&entity](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::mat4>(
+            "model", [&entity]() { return entity.get_component<mge::TransformComponent>().get_model_mat(); });
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "color", [&entity]() { return entity.get_component<ColorComponent>().get_color(); });
+      });
+  mge::AddedEntityEvent add_event(entity.get_id());
+  SendEngineEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_torus_radius_updated(TorusRadiusUpdatedEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.patch<TorusComponent>([&event](auto& torus) {
+    torus.set_inner_radius(event.inner_radius);
+    torus.set_outer_radius(event.outer_radius);
+  });
+  auto& torus = entity.get_component<TorusComponent>();
+  entity.patch<mge::RenderableComponent<GeometryVertex>>([&torus](auto& renderable) {
+    auto vertices = torus.generate_geometry();
+    auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+    vertex_buffer.bind();
+    vertex_buffer.copy(vertices);
+    vertex_buffer.unbind();
+  });
+  return true;
+}
+
+bool CadLayer::on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.patch<TorusComponent>([&event](auto& torus) {
+    torus.set_horizontal_density(event.inner_density);
+    torus.set_vertical_density(event.outer_density);
+  });
+  auto& torus = entity.get_component<TorusComponent>();
+  entity.patch<mge::RenderableComponent<GeometryVertex>>([&torus](auto& renderable) {
+    auto vertices = torus.generate_geometry();
+    auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+    vertex_buffer.bind();
+    vertex_buffer.copy(vertices);
+    vertex_buffer.unbind();
+    std::vector<unsigned int> indices;
+    if (renderable.get_render_mode() == mge::RenderMode::SOLID) {
+      indices = torus.generate_topology<mge::RenderMode::SOLID>();
+    } else if (renderable.get_render_mode() == mge::RenderMode::WIREFRAME) {
+      indices = torus.generate_topology<mge::RenderMode::WIREFRAME>();
+    }
+    auto& element_buffer = renderable.get_vertex_array().get_element_buffer();
+    element_buffer.bind();
+    element_buffer.copy(indices);
+    element_buffer.unbind();
+  });
+  return true;
+}
+
+bool CadLayer::on_add_bezier(AddBezierEvent& event) {
+  auto& bezier_entity = m_scene.create_entity();
+  auto& polygon_entity = m_scene.create_entity();
+  for (auto id : event.control_points) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<PointComponent>()) {
+      m_scene.destroy_entity(bezier_entity);
+      m_scene.destroy_entity(polygon_entity);
+      return false;
+    }
+    bezier_entity.add_child(entity);
+  }
+  bezier_entity.template add_component<mge::TagComponent>(BezierComponent::get_new_name());
+  bezier_entity.template add_component<BezierComponent>(bezier_entity.get_children(), polygon_entity);
+  bezier_entity.template add_component<SelectibleComponent>();
+  bezier_entity.template add_component<ColorComponent>();
+  auto& bezier = bezier_entity.get_component<BezierComponent>();
+  auto curve_vertices = bezier.generate_geometry();
+  auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  curve_vertex_buffer->bind();
+  curve_vertex_buffer->copy(curve_vertices);
+  curve_vertex_buffer->unbind();
+  auto curve_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(std::move(curve_vertex_buffer),
+                                                                               GeometryVertex::get_vertex_attributes());
+  bezier_entity.template add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(curve_vertex_array), [&bezier_entity](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+      });
+  auto polygon_vertices = bezier.generate_polygon_geometry();
+  auto polygon_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  polygon_vertex_buffer->bind();
+  polygon_vertex_buffer->copy(polygon_vertices);
+  polygon_vertex_buffer->unbind();
+  auto polygon_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(polygon_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  polygon_entity
+      .template add_component<mge::RenderableComponent<GeometryVertex>>(
+          mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_polygon_pipeline}},
+          mge::RenderMode::WIREFRAME, std::move(polygon_vertex_array),
+          [&bezier_entity](auto& render_pipeline) {
+            render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+                "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+          })
+      .disable();
+  mge::AddedEntityEvent add_event(bezier_entity.get_id());
+  SendEngineEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_add_control_point(BezierAddControlPointEvent& event) {
+  auto& point = m_scene.get_entity(event.control_point_id);
+  auto& bezier = m_scene.get_entity(event.bezier_id);
+  if (!point.has_component<PointComponent>()) return false;
+  point.patch<SelectibleComponent>([&bezier](auto& selectible) {
+    selectible.set_selection(bezier.get_component<SelectibleComponent>().is_selected());
+  });
+  point.patch<ColorComponent>(
+      [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
+  update_point(point);
+  bezier.add_child(point);
+  bezier.patch<BezierComponent>([&point](auto& component) { component.add_control_point(point); });
+  update_bezier(bezier);
+  return true;
+}
+
+bool CadLayer::on_delete_control_point(BezierDeleteControlPointEvent& event) {
+  auto& point = m_scene.get_entity(event.control_point_id);
+  auto& bezier = m_scene.get_entity(event.bezier_id);
+  if (!point.has_component<PointComponent>()) return false;
+  point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
+  point.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
+  update_point(point);
+  bezier.remove_child(point);
+  bezier.patch<BezierComponent>([&point](auto& component) { component.remove_control_point(point); });
+  update_bezier(bezier);
+  return true;
+}
+
+bool CadLayer::on_update_berenstein_polygon_state(BezierUpdateBerensteinPolygonStateEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierComponent>(
+      [&event](auto& bezier) { bezier.set_berenstein_polygon_status(event.state); });
+  return true;
+}
+
+bool CadLayer::on_cursor_move(CursorMoveEvent& event) {
+  m_cursor.patch<mge::TransformComponent>(
+      [this, &event](auto& transform) { transform.set_position(unproject_point(event.screen_space_position)); });
+  return true;
+}
+
+bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
+  glm::vec3 center = m_mass_center.get_component<MassCenterComponent>().get_position();
+  glm::vec3 offset = m_cursor.get_component<mge::TransformComponent>().get_position() - center;
+
+  for (auto id : event.ids) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<mge::TransformComponent>()) continue;
+    entity.patch<mge::TransformComponent>([&offset](auto& transform) { transform.translate(offset); });
+    if (!entity.has_component<PointComponent>()) continue;
+    update_point(entity);
+    update_parent_bezier(entity);
+  }
+
+  update_mass_center();
+
+  return true;
+}
+
+bool CadLayer::on_relative_scale(RelativeScaleEvent& event) {
+  glm::vec3 center = m_mass_center.get_component<MassCenterComponent>().get_position();
+  float scale_factor = glm::distance(center, unproject_point(event.scaling_end)) /
+                       glm::distance(center, unproject_point(event.scaling_begin));
+
+  for (auto id : event.ids) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<mge::TransformComponent>()) continue;
+    entity.patch<mge::TransformComponent>([&scale_factor](auto& transform) { transform.scale(scale_factor); });
+    if (!entity.has_component<PointComponent>()) continue;
+    update_point(entity);
+    update_parent_bezier(entity);
+  }
+
+  m_mass_center.patch<MassCenterComponent>([](auto& center) { center.update_position(); });
+  update_mass_center();
+
+  return true;
+}
+
+bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
+  glm::vec3 center = m_mass_center.get_component<MassCenterComponent>().get_position();
+  auto camera = m_scene.get_current_camera();
+  auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
+  glm::vec2 center_screen_space = proj_view * glm::vec4(center, 1.0f);
+  float angle = glm::asin(glm::cross(glm::vec3(glm::normalize(event.rotation_begin - center_screen_space), 0.0f),
+                                     glm::vec3(glm::normalize(event.rotation_end - center_screen_space), 0.0f)))
+                    .z;
+
+  for (auto id : event.ids) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<mge::TransformComponent>()) continue;
+    entity.patch<mge::TransformComponent>([&angle, &center, &event](auto& transform) {
+      transform.rotate(angle, event.axis);
+      transform.set_position(center + glm::angleAxis(angle, event.axis) * (transform.get_position() - center));
     });
+    if (!entity.has_component<PointComponent>()) continue;
+    update_point(entity);
+    update_parent_bezier(entity);
   }
+
+  update_mass_center();
+
   return true;
 }
 
-bool CadLayer::on_remove_control_point_by_position(
-    RemoveControlPointByPositionEvent& event) {
-  auto point = get_closest_selectible_entity(event.get_position());
-  if (point.has_value() && point->get().has_component<PointComponent>()) {
-    auto& bezier = m_scene.get_entity(event.get_bezier_tag());
-    if (bezier.get_component<SelectibleComponent>().is_selected()) {
-      point->get().patch<SelectibleComponent>(
-          [](auto& selectible) { selectible.set_selection(false); });
-    }
-    bezier.remove_child(point.value());
-    bezier.patch<BezierComponent>([&point](auto& component) {
-      component.remove_control_point(point.value());
-    });
-  }
-  return true;
-}
-
-bool CadLayer::on_add_control_point_by_tag(AddControlPointByTagEvent& event) {
-  auto& point = m_scene.get_entity(event.get_point_tag());
-  auto& bezier = m_scene.get_entity(event.get_bezier_tag());
-  if (point.has_component<PointComponent>()) {
-    if (bezier.get_component<SelectibleComponent>().is_selected()) {
-      point.patch<SelectibleComponent>(
-          [](auto& selectible) { selectible.set_selection(true); });
-    }
-    bezier.add_child(point);
-    bezier.patch<BezierComponent>(
-        [&point](auto& component) { component.add_control_point(point); });
-  }
-  return true;
-}
-
-bool CadLayer::on_remove_control_point_by_tag(
-    RemoveControlPointByTagEvent& event) {
-  auto& point = m_scene.get_entity(event.get_point_tag());
-  auto& bezier = m_scene.get_entity(event.get_bezier_tag());
-  if (point.has_component<PointComponent>()) {
-    if (bezier.get_component<SelectibleComponent>().is_selected()) {
-      point.patch<SelectibleComponent>(
-          [](auto& selectible) { selectible.set_selection(false); });
-    }
-    bezier.remove_child(point);
-    bezier.patch<BezierComponent>(
-        [&point](auto& component) { component.remove_control_point(point); });
-  }
-  return true;
-}
-
-bool CadLayer::on_delete_entity_by_tag(DeleteEntityByTagEvent& event) {
-  if (m_scene.contains(event.get_tag())) {
-    auto& entity = m_scene.get_entity(event.get_tag());
-    if (!entity.get_parents().empty()) {
-      return true;
-    }
-    remove_selected(entity);
-    m_scene.destroy_entity(event.get_tag());
-  }
-  return true;
-}
-
-bool CadLayer::on_window_framebuffer_resized(
-    mge::WindowFramebufferResizedEvent& event) {
-  m_window_size = {event.get_width(), event.get_height()};
-  return true;
-}
-
-void CadLayer::add_selected(mge::Entity& entity) {
-  entity.run_and_propagate([](auto& entity) {
-    if (entity.template has_component<SelectibleComponent>()) {
-      entity.template patch<SelectibleComponent>(
-          [](auto& selectible) { selectible.set_selection(true); });
-    }
+bool CadLayer::on_translate(TranslateEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.run_and_propagate([this, &event](auto& entity) {
+    if (!entity.template has_component<mge::TransformComponent>()) return;
+    entity.template patch<mge::TransformComponent>([&event](auto& transform) { transform.set_position(event.offset); });
+    if (!entity.template has_component<PointComponent>()) return;
+    update_point(entity);
+    update_parent_bezier(entity);
   });
-  m_selected.emplace_back(entity);
-  m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
-    mass_center.update_mass_center(m_selected, m_mass_center);
-  });
-  if (m_selected.size() == 1) {
-    UpdateDisplayedEntityEvent event(*m_selected.begin());
-    m_send_event(event);
-  } else {
-    UpdateDisplayedEntityEvent event(std::nullopt);
-    m_send_event(event);
-  }
+  update_mass_center();
+
+  return true;
 }
 
-void CadLayer::remove_selected(mge::Entity& entity) {
-  entity.run_and_propagate([](auto& entity) {
-    if (entity.template has_component<SelectibleComponent>()) {
-      entity.template patch<SelectibleComponent>(
-          [](auto& selectible) { selectible.set_selection(false); });
-    }
+bool CadLayer::on_scale(ScaleEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.run_and_propagate([this, &event](auto& entity) {
+    if (!entity.template has_component<mge::TransformComponent>()) return;
+    entity.template patch<mge::TransformComponent>([&event](auto& transform) { transform.set_scale(event.scale); });
+    if (!entity.template has_component<PointComponent>()) return;
+    update_point(entity);
+    update_parent_bezier(entity);
   });
-  m_selected.erase(std::remove(m_selected.begin(), m_selected.end(), entity),
-                   m_selected.end());
-  m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
-    mass_center.update_mass_center(m_selected, m_mass_center);
-  });
-  if (m_selected.size() == 1) {
-    UpdateDisplayedEntityEvent event(*m_selected.begin());
-    m_send_event(event);
-  } else {
-    UpdateDisplayedEntityEvent event(std::nullopt);
-    m_send_event(event);
-  }
+  update_mass_center();
+  return true;
 }
 
-void CadLayer::remove_all_selected() {
-  for (auto& selected : m_selected) {
-    selected.get().run_and_propagate([](auto& entity) {
-      if (entity.template has_component<SelectibleComponent>()) {
-        entity.template patch<SelectibleComponent>(
-            [](auto& selectible) { selectible.set_selection(false); });
+bool CadLayer::on_rotate(RotateEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.run_and_propagate([this, &event](auto& entity) {
+    if (!entity.template has_component<mge::TransformComponent>()) return;
+    entity.template patch<mge::TransformComponent>(
+        [&event](auto& transform) { transform.set_rotation(event.rotation); });
+    if (!entity.template has_component<PointComponent>()) return;
+    update_point(entity);
+    update_parent_bezier(entity);
+  });
+  update_mass_center();
+  return true;
+}
+
+bool CadLayer::on_tag_updated(mge::TagUpdateEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.patch<mge::TagComponent>([&event](auto& tag) { tag.set_tag(event.tag); });
+  return true;
+}
+
+bool CadLayer::on_render_mode_updated(mge::RenderModeUpdatedEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  entity.patch<mge::RenderableComponent<GeometryVertex>>(
+      [&event](auto& renderable) { renderable.set_render_mode(event.render_mode); });
+  if (entity.has_component<TorusComponent>()) {
+    auto& torus = entity.get_component<TorusComponent>();
+    entity.patch<mge::RenderableComponent<GeometryVertex>>([&torus](auto& renderable) {
+      auto vertices = torus.generate_geometry();
+      auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+      vertex_buffer.bind();
+      vertex_buffer.copy(vertices);
+      vertex_buffer.unbind();
+      std::vector<unsigned int> indices;
+      if (renderable.get_render_mode() == mge::RenderMode::SOLID) {
+        indices = torus.generate_topology<mge::RenderMode::SOLID>();
+      } else if (renderable.get_render_mode() == mge::RenderMode::WIREFRAME) {
+        indices = torus.generate_topology<mge::RenderMode::WIREFRAME>();
       }
+      auto& element_buffer = renderable.get_vertex_array().get_element_buffer();
+      element_buffer.bind();
+      element_buffer.copy(indices);
+      element_buffer.unbind();
     });
   }
-  m_selected.clear();
-  m_mass_center.patch<MassCenterComponent>([this](auto& mass_center) {
-    mass_center.update_mass_center(m_selected, m_mass_center);
+  return true;
+}
+
+bool CadLayer::on_selection_updated(SelectionUpdateEvent& event) {
+  if (!m_scene.contains(event.id)) return false;
+  auto& entity = m_scene.get_entity(event.id);
+  if (entity.get_component<SelectibleComponent>().is_selected() == event.selection) return false;
+
+  entity.patch<SelectibleComponent>([&event](auto& selectible) { selectible.set_selection(event.selection); });
+  entity.patch<ColorComponent>([&event](auto& color) {
+    if (event.selection) {
+      color.set_color({0.8f, 0.3f, 0.0f});
+    } else {
+      color.set_color({0.0f, 0.0f, 0.0f});
+    }
   });
-  UpdateDisplayedEntityEvent event(std::nullopt);
-  m_send_event(event);
+  if (entity.template has_component<PointComponent>()) {
+    update_point(entity);
+  }
+
+  if (entity.has_component<mge::TransformComponent>()) {
+    if (event.selection) {
+      m_mass_center.add_child(entity);
+      m_mass_center.patch<MassCenterComponent>(
+          [&entity, &event](auto& mass_center) { mass_center.add_entity(entity, event.is_parent); });
+    } else {
+      m_mass_center.remove_child(entity);
+      m_mass_center.patch<MassCenterComponent>(
+          [&entity, &event](auto& mass_center) { mass_center.remove_entity(entity, event.is_parent); });
+    }
+    update_mass_center();
+    if (m_mass_center.get_component<MassCenterComponent>().get_parent_count() > 1) {
+      m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+          [](auto& renderable) { renderable.enable(); });
+    } else {
+      m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+          [](auto& renderable) { renderable.disable(); });
+    }
+  }
+  return true;
+}
+
+bool CadLayer::on_unselect_all_entities(UnselectAllEntitiesEvent& event) {
+  m_mass_center.patch<MassCenterComponent>([](auto& mass_center) { mass_center.remove_all_entities(); });
+  m_mass_center.remove_all_children();
+  m_scene.foreach<>(entt::get<SelectibleComponent>, entt::exclude<>, [&](mge::Entity& entity) {
+    entity.patch<SelectibleComponent>([](auto& selectible) { selectible.set_selection(false); });
+  });
+  m_scene.foreach<>(entt::get<SelectibleComponent, ColorComponent>, entt::exclude<>, [&](mge::Entity& entity) {
+    entity.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
+    if (entity.has_component<PointComponent>()) {
+      update_point(entity);
+    }
+  });
+  m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+      [](auto& renderable) { renderable.disable(); });
+  return true;
 }

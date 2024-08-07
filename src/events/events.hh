@@ -1,14 +1,15 @@
-#ifndef MCAD_EVENTS_EVENTS_HH
-#define MCAD_EVENTS_EVENTS_HH
+#ifndef MCAD_EVENTS
+#define MCAD_EVENTS
 
-#include "add_event.hh"
-#include "bezier_event.h"
+#include "bezier_event.hh"
 #include "cursor_event.hh"
-#include "delete_event.hh"
 #include "input_state_event.hh"
-#include "rename_event.hh"
+#include "point_event.hh"
 #include "select_event.hh"
 #include "torus_event.hh"
 #include "transform_event.hh"
 
-#endif  // MCAD_EVENTS_EVENTS_HH
+DeclareClientEventManager(BezierEvents, CursorEvents, InputStateEvents, PointEvents, SelectionEvents, TorusEvents,
+                          TransformEvents);
+
+#endif  // MCAD_EVENTS

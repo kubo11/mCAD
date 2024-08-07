@@ -3,31 +3,96 @@
 
 #include "mge.hh"
 
+#include "../components/point_component.hh"
+#include "../components/selectible_component.hh"
+#include "../components/torus_component.hh"
 #include "../events/events.hh"
-#include "../geometry/point_component.hh"
-#include "../geometry/selectible_component.hh"
-#include "../geometry/torus_component.hh"
 
-enum class UIMode {
-  NONE,
-  ADD_BEZIER_POINT,
-  REMOVE_BEZIER_POINT,
+class SelectionManager {
+ public:
+  struct EntityMapNode {
+    std::string tag;
+    bool is_selected;
+    bool is_parent;
+  };
+
+  SelectionManager();
+
+  void select(mge::EntityId id, bool is_parent);
+  void unselect(mge::EntityId id);
+  void unselect_all();
+
+  mge::OptionalEntity get_displayed_entity() const;
+  bool is_selected(mge::EntityId id) const;
+  const std::string& get_tag(mge::EntityId id) const;
+  unsigned int get_selected_count() const;
+  bool contains(mge::EntityId id) const;
+  bool is_dirty() const;
+
+  std::vector<mge::EntityId> get_all_entities_ids();
+  std::vector<mge::EntityId> get_selected_ids();
+
+  bool add_entity(mge::EntityId id, const std::string& tag);
+  bool remove_entity(mge::EntityId id);
+  bool rename_entity(mge::EntityId id, const std::string& tag);
+
+  void validate_selected();
+
+ private:
+  std::map<mge::EntityId, EntityMapNode> m_entities;
+  std::vector<mge::EntityId> m_selected_entities;
+  mge::OptionalEntity m_displayed_entity;
+  unsigned int m_selected_count;
+  unsigned int m_parent_count;
+};
+
+class ToolManager {
+ public:
+  enum class Type { Select, Delete, Move, Scale, Rotate, AddBezierPoint, RemoveBezierPoint };
+
+  ToolManager(Type current_type = Type::Select, Type previous_type = Type::Select);
+
+  static std::string get_name(Type type);
+
+  Type get_type() const;
+  void set_type(Type type);
+  void set_type_and_update_previous(Type type);
+  void restore_type();
+
+ private:
+  Type m_current_tool;
+  Type m_previous_tool;
+};
+
+class RotationAxis {
+ public:
+  enum class Type { X, Y, Z };
+
+  RotationAxis(Type type = Type::X);
+
+  static std::string get_name(Type type);
+  glm::vec3 get_value() const;
+  Type get_type() const;
+
+  void set_type(Type type);
+
+ private:
+  Type m_type;
 };
 
 class UILayer : public mge::Layer {
  public:
-  UILayer();
-  ~UILayer() { MGE_WARN("UILayer terminated."); }
+  UILayer(mge::Entity& mass_center);
+  ~UILayer() = default;
 
   virtual void configure() override;
   virtual void update() override;
-  virtual void handle_event(mge::Event& event, float dt) override;
 
  private:
-  std::optional<std::reference_wrapper<mge::Entity>> m_displayed_entity;
-  std::map<std::string, bool> m_entities;
-  UIMode m_ui_mode;
-  InputState m_input_state;
+  ToolManager m_tool_manager;
+  bool m_disable_tools_combo;
+  RotationAxis m_rotation_axis;
+  SelectionManager m_selection_manager;
 
   void show_tag_panel(const mge::Entity& entity);
   void show_transform_panel(const mge::Entity& entity);
@@ -39,13 +104,15 @@ class UILayer : public mge::Layer {
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);
 
-  bool on_new_entity(NewEntityEvent& event);
-  bool on_removed_entity(RemoveEntityEvent& event);
-  bool on_select_entity_by_tag(SelectEntityByTagEvent& event);
-  bool on_select_entity_by_position(SelectEntityByPositionEvent& event);
-  bool on_unselect_all_entities(UnSelectAllEntitiesEvent event);
-  bool on_unselect_entity_by_tag(UnSelectEntityByTagEvent event);
-  bool on_update_displayed_entity(UpdateDisplayedEntityEvent& event);
+  bool on_added_entity(mge::AddedEntityEvent& event);
+  bool on_deleted_entity(mge::DeletedEntityEvent& event);
+
+  bool on_mouse_moved(mge::MouseMovedEvent& event);
+  bool on_mouse_button_pressed(mge::MouseButtonUpdatedEvent& event);
+  bool on_mouse_scroll(mge::MouseScrollEvent& event);
+
+  void send_camera_move_events(mge::MouseMovedEvent& event);
+  void send_camera_zoom_event(mge::MouseScrollEvent& event);
 };
 
 #endif  // MCAD_UI_LAYER_HH

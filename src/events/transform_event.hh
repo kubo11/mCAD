@@ -1,84 +1,72 @@
-#ifndef MCAD_EVENTS_TRANSFORM_EVENT_HH
-#define MCAD_EVENTS_TRANSFORM_EVENT_HH
+#ifndef MCAD_EVENTS_TRANSFORM_EVENT
+#define MCAD_EVENTS_TRANSFORM_EVENT
 
 #include "mge.hh"
 
-class MoveByCursorEvent : public mge::Event {
+enum class TransformEvents { TranslateToCursor, Translate, RelativeScale, Scale, RelativeRotate, Rotate };
+
+class TranslateToCursorEvent : public mge::Event<TransformEvents> {
  public:
-  MoveByCursorEvent() {}
-  virtual inline const std::string name() const override {
-    return "MoveByCursorEvent";
-  }
+  TranslateToCursorEvent(const std::vector<mge::EntityId>& ids)
+      : mge::Event<TransformEvents>(TransformEvents::TranslateToCursor, "TranslateToCursorEvent"), ids(ids) {}
+
+  std::vector<mge::EntityId> ids;
 };
 
-class MoveByUIEvent : public mge::Event {
+class TranslateEvent : public mge::Event<TransformEvents> {
  public:
-  MoveByUIEvent(const glm::vec3& offset) : m_offset(offset) {}
-  virtual inline const std::string name() const override {
-    return "MoveByUIEvent";
-  }
+  TranslateEvent(mge::EntityId id, glm::vec3 offset)
+      : mge::Event<TransformEvents>(TransformEvents::Translate, "TranslateEvent"), id(id), offset(offset) {}
 
-  inline const glm::vec3& get_offset() const { return m_offset; }
-
- private:
-  glm::vec3 m_offset;
+  mge::EntityId id;
+  glm::vec3 offset;
 };
 
-class ScaleByCursorEvent : public mge::Event {
+class RelativeScaleEvent : public mge::Event<TransformEvents> {
  public:
-  ScaleByCursorEvent(glm::vec2 beg, glm::vec2 end) : m_beg(beg), m_end(end) {}
-  virtual inline const std::string name() const override {
-    return "ScaleByCursorEvent";
-  }
-  inline glm::vec2 get_beg() const { return m_beg; }
-  inline glm::vec2 get_end() const { return m_end; }
+  RelativeScaleEvent(const std::vector<mge::EntityId>& ids, glm::vec2 scaling_begin, glm::vec2 scaling_end)
+      : mge::Event<TransformEvents>(TransformEvents::RelativeScale, "RelativeScaleEvent"),
+        ids(ids),
+        scaling_begin(scaling_begin),
+        scaling_end(scaling_end) {}
 
- protected:
-  glm::vec2 m_beg;
-  glm::vec2 m_end;
+  std::vector<mge::EntityId> ids;
+  glm::vec2 scaling_begin;
+  glm::vec2 scaling_end;
 };
 
-class ScaleByUIEvent : public mge::Event {
+class ScaleEvent : public mge::Event<TransformEvents> {
  public:
-  ScaleByUIEvent(const glm::vec3& scale) : m_scale(scale) {}
-  virtual inline const std::string name() const override {
-    return "ScaleByUIEvent";
-  }
+  ScaleEvent(mge::EntityId id, glm::vec3 scale)
+      : mge::Event<TransformEvents>(TransformEvents::Scale, "ScaleEvent"), id(id), scale(scale) {}
 
-  inline const glm::vec3& get_scale() const { return m_scale; }
-
- private:
-  glm::vec3 m_scale;
+  mge::EntityId id;
+  glm::vec3 scale;
 };
 
-class RotateByCursorEvent : public mge::Event {
+class RelativeRotateEvent : public mge::Event<TransformEvents> {
  public:
-  RotateByCursorEvent(glm::vec2 beg, glm::vec2 end, glm::vec3 axis)
-      : m_beg(beg), m_end(end), m_axis(axis) {}
-  virtual inline const std::string name() const override {
-    return "RotateByCursorEvent";
-  }
-  inline glm::vec2 get_beg() const { return m_beg; }
-  inline glm::vec2 get_end() const { return m_end; }
-  inline glm::vec3 get_axis() const { return m_axis; }
+  RelativeRotateEvent(const std::vector<mge::EntityId>& ids, glm::vec2 rotation_begin, glm::vec2 rotation_end,
+                      glm::vec3 axis)
+      : mge::Event<TransformEvents>(TransformEvents::RelativeRotate, "RelativeRotateEvent"),
+        ids(ids),
+        rotation_begin(rotation_begin),
+        rotation_end(rotation_end),
+        axis(axis) {}
 
- protected:
-  glm::vec2 m_beg;
-  glm::vec2 m_end;
-  glm::vec3 m_axis;
+  std::vector<mge::EntityId> ids;
+  glm::vec2 rotation_begin;
+  glm::vec2 rotation_end;
+  glm::vec3 axis;
 };
 
-class RotateByUIEvent : public mge::Event {
+class RotateEvent : public mge::Event<TransformEvents> {
  public:
-  RotateByUIEvent(const mge::quat& rotation) : m_rotation(rotation) {}
-  virtual inline const std::string name() const override {
-    return "RotateByUIEvent";
-  }
+  RotateEvent(mge::EntityId id, glm::quat rotation)
+      : mge::Event<TransformEvents>(TransformEvents::Rotate, "RotateEvent"), id(id), rotation(rotation) {}
 
-  inline const mge::quat get_rotation() const { return m_rotation; }
-
- private:
-  mge::quat m_rotation;
+  mge::EntityId id;
+  glm::quat rotation;
 };
 
-#endif  // MCAD_EVENTS_TRANSFORM_EVENT_HH
+#endif  // MCAD_EVENTS_TRANSFORM_EVENT

@@ -3,11 +3,10 @@
 
 #include "mge.hh"
 
-#include "geometry_vertex.hh"
+#include "../vertices/geometry_vertex.hh"
 
 struct TorusComponent {
-  TorusComponent(float inner_radius = 4.0f, float outer_radius = 6.0f,
-                 unsigned int horizontal_density = 8,
+  TorusComponent(float inner_radius = 4.0f, float outer_radius = 6.0f, unsigned int horizontal_density = 8,
                  unsigned int vertival_density = 8)
       : m_inner_radius(inner_radius),
         m_outer_radius(outer_radius),
@@ -44,13 +43,11 @@ struct TorusComponent {
   unsigned int get_horizontal_density() const { return m_horizontal_density; }
   unsigned int get_vertical_density() const { return m_vertical_density; }
 
-  static std::string get_new_name() {
-    return "Torus " + std::to_string(s_new_id++);
-  }
+  static std::string get_new_name() { return "Torus " + std::to_string(s_new_id++); }
 
-  std::vector<GeometryVertex> generate_geometry();
+  std::vector<GeometryVertex> generate_geometry() const;
   template <mge::RenderMode mode>
-  std::vector<unsigned int> generate_topology();
+  std::vector<unsigned int> generate_topology() const;
 
   void on_construct(mge::Entity& entity);
   void on_update(mge::Entity& entity);

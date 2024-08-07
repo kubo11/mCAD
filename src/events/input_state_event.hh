@@ -1,20 +1,18 @@
-#ifndef MCAD_EVENTS_INPUT_STATE_EVENT_HH
-#define MCAD_EVENTS_INPUT_STATE_EVENT_HH
+#ifndef MCAD_EVENTS_INPUT_STATE_EVENT
+#define MCAD_EVENTS_INPUT_STATE_EVENT
 
 #include "mge.hh"
 
 #include "../input_state.hh"
 
-class InputStateChangedEvent : public mge::Event {
- public:
-  InputStateChangedEvent(const InputState& state) : m_state(state) {}
-  virtual inline const std::string name() const override {
-    return "InputStateChangedEvent";
-  }
-  inline const InputState& get_input_state() const { return m_state; }
+enum class InputStateEvents { Update };
 
- protected:
-  InputState m_state;
+class InputStateUpdateEvent : public mge::Event<InputStateEvents> {
+ public:
+  InputStateUpdateEvent(InputState state)
+      : mge::Event<InputStateEvents>(InputStateEvents::Update, "InputStateUpdateEvent"), state(state) {}
+
+  InputState state;
 };
 
-#endif  // MCAD_EVENTS_INPUT_STATE_EVENT_HH
+#endif  // MCAD_EVENTS_INPUT_STATE_EVENT

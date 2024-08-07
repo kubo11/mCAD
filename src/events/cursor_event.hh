@@ -1,18 +1,16 @@
-#ifndef MCAD_EVENTS_CURSOR_EVENT_HH
-#define MCAD_EVENTS_CURSOR_EVENT_HH
+#ifndef MCAD_EVENTS_CURSOR_EVENT
+#define MCAD_EVENTS_CURSOR_EVENT
 
 #include "mge.hh"
 
-class CursorMoveEvent : public mge::Event {
- public:
-  CursorMoveEvent(glm::vec2 position) : m_position(position) {}
-  virtual inline const std::string name() const override {
-    return "CursorMoveEvent";
-  }
-  inline glm::vec2 get_position() const { return m_position; }
+enum class CursorEvents { Move };
 
- protected:
-  glm::vec2 m_position;
+class CursorMoveEvent : public mge::Event<CursorEvents> {
+ public:
+  CursorMoveEvent(glm::vec2 screen_space_position)
+      : mge::Event<CursorEvents>(CursorEvents::Move, "CursorMoveEvent"), screen_space_position(screen_space_position) {}
+
+  glm::vec2 screen_space_position;
 };
 
-#endif  // MCAD_EVENTS_CURSOR_EVENT_HH
+#endif  // MCAD_EVENTS_CURSOR_EVENT

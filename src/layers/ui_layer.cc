@@ -1,15 +1,203 @@
 #include "ui_layer.hh"
+#include "../components/bezier_component.hh"
+#include "../components/selectible_component.hh"
 #include "../events/events.hh"
-#include "../geometry/bezier_component.hh"
 #include "../input_state.hh"
-#include "cad_layer.hh"
 
-UILayer::UILayer()
-    : m_ui_mode(UIMode::NONE), m_input_state(InputState::SELECT) {}
+RotationAxis::RotationAxis(RotationAxis::Type type) : m_type(type) {}
 
-void UILayer::configure() {}
+std::string RotationAxis::get_name(RotationAxis::Type type) {
+  switch (type) {
+    case RotationAxis::Type::X:
+      return "X";
+    case RotationAxis::Type::Y:
+      return "Y";
+    case RotationAxis::Type::Z:
+      return "Z";
+  }
+  return "invalid";
+}
+
+glm::vec3 RotationAxis::get_value() const {
+  switch (m_type) {
+    case RotationAxis::Type::X:
+      return {1.0f, 0.0f, 0.0f};
+    case RotationAxis::Type::Y:
+      return {0.0f, 1.0f, 0.0f};
+    case RotationAxis::Type::Z:
+      return {0.0f, 0.0f, 1.0f};
+  }
+  return glm::vec3{std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN(),
+                   std::numeric_limits<float>::quiet_NaN()};
+}
+
+RotationAxis::Type RotationAxis::get_type() const { return m_type; }
+
+void RotationAxis::set_type(RotationAxis::Type type) { m_type = type; }
+
+ToolManager::ToolManager(ToolManager::Type current_type, ToolManager::Type previous_type)
+    : m_current_tool(current_type), m_previous_tool(previous_type) {}
+
+std::string ToolManager::get_name(ToolManager::Type type) {
+  switch (type) {
+    case ToolManager::Type::Select:
+      return "Select";
+    case ToolManager::Type::Delete:
+      return "Delete";
+    case ToolManager::Type::Move:
+      return "Move";
+    case ToolManager::Type::Scale:
+      return "Scale";
+    case ToolManager::Type::Rotate:
+      return "Rotate";
+    case ToolManager::Type::AddBezierPoint:
+      return "AddBezierPoint";
+    case ToolManager::Type::RemoveBezierPoint:
+      return "RemoveBezierPoint";
+  }
+
+  return "invalid";
+}
+
+ToolManager::Type ToolManager::get_type() const { return m_current_tool; }
+
+void ToolManager::set_type(Type type) { m_current_tool = type; }
+
+void ToolManager::set_type_and_update_previous(Type type) {
+  m_previous_tool = m_current_tool;
+  m_current_tool = type;
+}
+
+void ToolManager::restore_type() { m_current_tool = m_previous_tool; }
+
+SelectionManager::SelectionManager() : m_displayed_entity(std::nullopt), m_selected_count(0) {}
+
+void SelectionManager::select(mge::EntityId id, bool is_parent) {
+  if (m_entities.at(id).is_selected) return;
+  m_entities.at(id).is_selected = true;
+  m_entities.at(id).is_parent = is_parent;
+  m_selected_count++;
+  if (is_parent) m_parent_count++;
+  m_selected_entities.push_back(id);
+  mge::QueryEntityByIdEvent query_event(id);
+  SendEngineEvent(query_event);
+  query_event.entity.value().get().propagate([this](auto& entity) { select(entity.get_id(), false); });
+  SelectionUpdateEvent selection_event(id, true, is_parent);
+  SendEvent(selection_event);
+  if (is_parent) {
+    if (m_parent_count == 1) {
+      m_displayed_entity = query_event.entity;
+    } else {
+      m_displayed_entity = std::nullopt;
+    }
+  }
+}
+
+void SelectionManager::unselect(mge::EntityId id) {
+  if (!m_entities.at(id).is_selected) return;
+  m_entities.at(id).is_selected = false;
+  bool is_parent = m_entities.at(id).is_parent;
+  m_entities.at(id).is_parent = true;
+  m_selected_count--;
+  if (is_parent) m_parent_count--;
+  mge::QueryEntityByIdEvent query_event(id);
+  SendEngineEvent(query_event);
+  query_event.entity.value().get().propagate([this](auto& entity) { unselect(entity.get_id()); });
+  SelectionUpdateEvent selection_event(id, false, is_parent);
+  SendEvent(selection_event);
+}
+
+void SelectionManager::unselect_all() {
+  for (auto& [id, data] : m_entities) {
+    data.is_selected = false;
+    data.is_parent = true;
+  }
+  m_selected_count = 0;
+  m_parent_count = 0;
+  m_displayed_entity = std::nullopt;
+  m_selected_entities.clear();
+  UnselectAllEntitiesEvent event;
+  SendEvent(event);
+}
+
+mge::OptionalEntity SelectionManager::get_displayed_entity() const { return m_displayed_entity; }
+
+bool SelectionManager::is_selected(mge::EntityId id) const { return m_entities.at(id).is_selected; }
+
+const std::string& SelectionManager::get_tag(mge::EntityId id) const { return m_entities.at(id).tag; }
+
+unsigned int SelectionManager::get_selected_count() const { return m_selected_count; }
+
+bool SelectionManager::contains(mge::EntityId id) const { return m_entities.contains(id); }
+
+bool SelectionManager::is_dirty() const { return m_selected_entities.size() != m_selected_count; }
+
+std::vector<mge::EntityId> SelectionManager::get_all_entities_ids() {
+  auto kv = std::views::keys(m_entities);
+  return {kv.begin(), kv.end()};
+}
+
+std::vector<mge::EntityId> SelectionManager::get_selected_ids() { return m_selected_entities; }
+
+bool SelectionManager::add_entity(mge::EntityId id, const std::string& tag) {
+  if (contains(id)) return false;
+
+  m_entities.emplace(id, EntityMapNode{.tag = tag, .is_selected = false});
+
+  return true;
+}
+
+bool SelectionManager::remove_entity(mge::EntityId id) {
+  if (!contains(id)) return false;
+
+  unselect(id);
+  m_entities.erase(id);
+
+  return true;
+}
+
+bool SelectionManager::rename_entity(mge::EntityId id, const std::string& tag) {
+  if (!contains(id)) return false;
+
+  auto node = m_entities.extract(id);
+  node.mapped().tag = tag;
+  m_entities.insert(std::move(node));
+
+  return true;
+}
+
+void SelectionManager::validate_selected() {
+  mge::vector_remove_if<mge::EntityId>(m_selected_entities, [&entities = m_entities](auto& id) {
+    return !entities.contains(id) || !entities.at(id).is_selected;
+  });
+  if (m_parent_count == 1) {
+    for (auto id : m_selected_entities) {
+      if (m_entities.at(id).is_parent) {
+        mge::QueryEntityByIdEvent query_event(m_selected_entities.front());
+        SendEngineEvent(query_event);
+        m_displayed_entity = query_event.entity;
+        break;
+      }
+    }
+  } else {
+    m_displayed_entity = std::nullopt;
+  }
+}
+
+UILayer::UILayer(mge::Entity& mass_center)
+    : m_tool_manager(), m_disable_tools_combo(false), m_rotation_axis(), m_selection_manager() {}
+
+void UILayer::configure() {
+  mge::AddEventListener(mge::EntityEvents::Added, UILayer::on_added_entity, this);
+  mge::AddEventListener(mge::EntityEvents::Deleted, UILayer::on_deleted_entity, this);
+  mge::AddEventListener(mge::MouseEvents::MouseButtonUpdated, UILayer::on_mouse_button_pressed, this);
+  mge::AddEventListener(mge::MouseEvents::MouseMoved, UILayer::on_mouse_moved, this);
+  mge::AddEventListener(mge::MouseEvents::MouseScroll, UILayer::on_mouse_scroll, this);
+}
 
 void UILayer::update() {
+  if (m_selection_manager.is_dirty()) m_selection_manager.validate_selected();
+
   mge::UIManager::start_frame();
 
   //   bool dwnd = true;
@@ -20,8 +208,7 @@ void UILayer::update() {
   ImGui::SetNextWindowSize({std::min(size.x * 0.25f, 250.0f), size.y});
   ImGui::SetNextWindowPos({std::max(size.x * 0.75f, size.x - 250.f), 0});
   ImGui::Begin("ToolsParams", nullptr,
-               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                   ImGuiWindowFlags_NoMove);
+               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
   if (ImGui::BeginTabBar("MainTabBar")) {
     if (ImGui::BeginTabItem("Main")) {
@@ -32,10 +219,10 @@ void UILayer::update() {
       ImGui::Text("objects");
       show_entities_list_panel();
 
-      if (m_displayed_entity.has_value()) {
+      if (m_selection_manager.get_displayed_entity().has_value()) {
         ImGui::Separator();
         ImGui::Text("parameters");
-        show_entity_parameters_panel(m_displayed_entity->get());
+        show_entity_parameters_panel(m_selection_manager.get_displayed_entity()->get());
       }
 
       ImGui::EndTabItem();
@@ -43,8 +230,7 @@ void UILayer::update() {
 
     if (ImGui::BeginTabItem("Other")) {
       ImGuiIO& io = ImGui::GetIO();
-      ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate,
-                  io.Framerate);
+      ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
       ImGui::EndTabItem();
     }
     ImGui::EndTabBar();
@@ -56,34 +242,14 @@ void UILayer::update() {
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void UILayer::handle_event(mge::Event& event, float dt) {
-  mge::Event::try_handler<NewEntityEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_new_entity));
-  mge::Event::try_handler<RemoveEntityEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_removed_entity));
-  mge::Event::try_handler<SelectEntityByTagEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_select_entity_by_tag));
-  mge::Event::try_handler<SelectEntityByPositionEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_select_entity_by_position));
-  mge::Event::try_handler<UnSelectAllEntitiesEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_unselect_all_entities));
-  mge::Event::try_handler<UnSelectEntityByTagEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_unselect_entity_by_tag));
-  mge::Event::try_handler<UpdateDisplayedEntityEvent>(
-      event, BIND_EVENT_HANDLER(UILayer::on_update_displayed_entity));
-}
-
 void UILayer::show_tag_panel(const mge::Entity& entity) {
   auto& component = entity.get_component<mge::TagComponent>();
   std::string tag = component.get_tag();
-  std::string old_tag = tag;
   if (ImGui::InputText("##tag", &tag)) {
-    RenameEvent event(component.get_tag(), tag);
-    m_send_event(event);
-    if (event.get_status()) {
-      auto node = m_entities.extract(old_tag);
-      node.key() = tag;
-      m_entities.insert(std::move(node));
+    mge::TagUpdateEvent event(entity.get_id(), tag);
+    SendEngineEvent(event);
+    if (event.is_handled()) {
+      m_selection_manager.rename_entity(entity.get_id(), tag);
     }
   }
 }
@@ -93,39 +259,35 @@ void UILayer::show_transform_panel(const mge::Entity& entity) {
   // position
   ImGui::Text("position");
   glm::vec3 position = component.get_position();
-  if (ImGui::InputFloat3("##position", reinterpret_cast<float*>(&position),
-                         "%.2f")) {
-    MoveByUIEvent event(position);
-    m_send_event(event);
+  if (ImGui::InputFloat3("##position", reinterpret_cast<float*>(&position), "%.2f")) {
+    TranslateEvent event(entity.get_id(), position);
+    SendEvent(event);
   }
 
   // rotation
-  glm::vec3 rotation = mge::eulerAngles(component.get_rotation());
+  glm::vec3 rotation = glm::eulerAngles(component.get_rotation());
   auto pi = glm::pi<float>();
   bool update_rotation = false;
   ImGui::Text("rotation");
   if (ImGui::SliderFloat("x", &rotation.x, -pi, pi, "%.2f")) {
-    RotateByUIEvent event(
-        mge::angleAxis(rotation.x, glm::vec3(1.0f, 0.0f, 0.0f)));
-    m_send_event(event);
+    RotateEvent event(entity.get_id(), glm::angleAxis(rotation.x, glm::vec3(1.0f, 0.0f, 0.0f)));
+    SendEvent(event);
   }
   if (ImGui::SliderFloat("y", &rotation.y, -pi, pi, "%.2f")) {
-    RotateByUIEvent event(
-        mge::angleAxis(rotation.y, glm::vec3(0.0f, 1.0f, 0.0f)));
-    m_send_event(event);
+    RotateEvent event(entity.get_id(), glm::angleAxis(rotation.y, glm::vec3(0.0f, 1.0f, 0.0f)));
+    SendEvent(event);
   }
   if (ImGui::SliderFloat("z", &rotation.z, -pi, pi, "%.2f")) {
-    RotateByUIEvent event(
-        mge::angleAxis(rotation.z, glm::vec3(0.0f, 0.0f, 1.0f)));
-    m_send_event(event);
+    RotateEvent event(entity.get_id(), glm::angleAxis(rotation.z, glm::vec3(0.0f, 0.0f, 1.0f)));
+    SendEvent(event);
   }
 
   // scale
   ImGui::Text("scale");
   glm::vec3 scale = component.get_scale();
   if (ImGui::InputFloat3("##scale", reinterpret_cast<float*>(&scale), "%.2f")) {
-    ScaleByUIEvent event(scale);
-    m_send_event(event);
+    ScaleEvent event(entity.get_id(), scale);
+    SendEvent(event);
   }
 }
 
@@ -134,28 +296,22 @@ void UILayer::show_limited_transform_panel(const mge::Entity& entity) {
   // position
   ImGui::Text("position");
   glm::vec3 position = component.get_position();
-  if (ImGui::InputFloat3("##position", reinterpret_cast<float*>(&position),
-                         "%.2f")) {
-    MoveByUIEvent event(position);
-    m_send_event(event);
+  if (ImGui::InputFloat3("##position", reinterpret_cast<float*>(&position), "%.2f")) {
+    TranslateEvent event(entity.get_id(), position);
+    SendEvent(event);
   }
 }
 
 void UILayer::show_renderable_component(const mge::Entity& entity) {
-  auto& component =
-      entity.get_component<mge::RenderableComponent<GeometryVertex>>();
+  auto& component = entity.get_component<mge::RenderableComponent<GeometryVertex>>();
   std::string selected_value = to_string(component.get_render_mode());
   if (ImGui::BeginCombo("##render_mode", selected_value.c_str())) {
-    for (int n = 0; n < RENDER_MODE_SIZE; n++) {
-      const bool is_selected =
-          (static_cast<int>(component.get_render_mode()) == 1 << n);
-      if (ImGui::Selectable(
-              to_string(static_cast<mge::RenderMode>(1 << n)).c_str(),
-              is_selected)) {
-        mge::RenderModeUpdatedEvent event(
-            entity.get_component<mge::TagComponent>(),
-            static_cast<mge::RenderMode>(1 << n));
-        m_send_event(event);
+    auto render_modes = component.get_registered_render_modes();
+    for (auto render_mode : render_modes) {
+      const bool is_selected = component.get_render_mode() == render_mode;
+      if (ImGui::Selectable(to_string(render_mode).c_str(), is_selected)) {
+        mge::RenderModeUpdatedEvent event(entity.get_id(), render_mode);
+        SendEngineEvent(event);
       }
 
       if (is_selected) ImGui::SetItemDefaultFocus();
@@ -170,67 +326,53 @@ void UILayer::show_torus_panel(const mge::Entity& entity) {
   float inner_radius = component.get_inner_radius();
   if (ImGui::InputFloat("##inner", &inner_radius, 0.1f, 1.0f, "%.2f")) {
     inner_radius = std::clamp(inner_radius, 0.0f, component.get_outer_radius());
-    TorusUpdatedEvent event(entity.get_component<mge::TagComponent>(),
-                            inner_radius, component.get_outer_radius(),
-                            component.get_horizontal_density(),
-                            component.get_vertical_density());
-    m_send_event(event);
+    TorusRadiusUpdatedEvent event(entity.get_id(), inner_radius, component.get_outer_radius());
+    SendEvent(event);
   }
 
   ImGui::Text("outer radius");
   float outer_radius = component.get_outer_radius();
   if (ImGui::InputFloat("##outer", &outer_radius, 0.1f, 1.0f, "%.2f")) {
     outer_radius = std::max(outer_radius, component.get_inner_radius());
-    TorusUpdatedEvent event(entity.get_component<mge::TagComponent>(),
-                            component.get_inner_radius(), outer_radius,
-                            component.get_horizontal_density(),
-                            component.get_vertical_density());
-    m_send_event(event);
+    TorusRadiusUpdatedEvent event(entity.get_id(), component.get_inner_radius(), outer_radius);
+    SendEvent(event);
   }
 
   ImGui::Text("horizontal density");
   int horizontal_density = component.get_horizontal_density();
   if (ImGui::InputInt("##horizontal", &horizontal_density, 1, 1)) {
     horizontal_density = std::clamp(horizontal_density, 3, 128);
-    TorusUpdatedEvent event(entity.get_component<mge::TagComponent>(),
-                            component.get_inner_radius(),
-                            component.get_outer_radius(), horizontal_density,
-                            component.get_vertical_density());
-    m_send_event(event);
+    TorusGridDensityUpdatedEvent event(entity.get_id(), horizontal_density, component.get_vertical_density());
+    SendEvent(event);
   }
 
   ImGui::Text("vertical density");
   int vertical_density = component.get_vertical_density();
   if (ImGui::InputInt("##vertical", &vertical_density, 1, 1)) {
     vertical_density = std::clamp(vertical_density, 3, 128);
-    TorusUpdatedEvent event(
-        entity.get_component<mge::TagComponent>(), component.get_inner_radius(),
-        component.get_outer_radius(), component.get_horizontal_density(),
-        vertical_density);
-    m_send_event(event);
+    TorusGridDensityUpdatedEvent event(entity.get_id(), component.get_horizontal_density(), vertical_density);
+    SendEvent(event);
   }
 }
 
 void UILayer::show_bezier_panel(const mge::Entity& entity) {
-  static InputState prev_input_state = InputState::SELECT;
   ImGui::Text("Control points");
   auto add_button_func = [this]() {
     if (ImGui::Button("add")) {
-      if (m_ui_mode == UIMode::NONE) {
-        prev_input_state = m_input_state;
-      }
-      if (m_ui_mode != UIMode::ADD_BEZIER_POINT) {
-        m_ui_mode = UIMode::ADD_BEZIER_POINT;
-        m_input_state = InputState::SELECT;
+      if (m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+        m_tool_manager.restore_type();
+        m_disable_tools_combo = false;
       } else {
-        m_ui_mode = UIMode::NONE;
-        m_input_state = prev_input_state;
+        if (m_tool_manager.get_type() != ToolManager::Type::RemoveBezierPoint) {
+          m_tool_manager.set_type_and_update_previous(ToolManager::Type::AddBezierPoint);
+        } else {
+          m_tool_manager.set_type(ToolManager::Type::AddBezierPoint);
+        }
+        m_disable_tools_combo = true;
       }
-      InputStateChangedEvent event(m_input_state);
-      m_send_event(event);
     }
   };
-  if (m_ui_mode == UIMode::ADD_BEZIER_POINT) {
+  if (m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
     add_button_func();
     ImGui::PopStyleColor();
@@ -241,21 +383,20 @@ void UILayer::show_bezier_panel(const mge::Entity& entity) {
   auto remove_button_func = [this]() {
     ImGui::SameLine();
     if (ImGui::Button("remove")) {
-      if (m_ui_mode == UIMode::NONE) {
-        prev_input_state = m_input_state;
-      }
-      if (m_ui_mode != UIMode::REMOVE_BEZIER_POINT) {
-        m_ui_mode = UIMode::REMOVE_BEZIER_POINT;
-        m_input_state = InputState::SELECT;
+      if (m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+        m_tool_manager.restore_type();
+        m_disable_tools_combo = false;
       } else {
-        m_ui_mode = UIMode::NONE;
-        m_input_state = prev_input_state;
+        if (m_tool_manager.get_type() != ToolManager::Type::AddBezierPoint) {
+          m_tool_manager.set_type_and_update_previous(ToolManager::Type::RemoveBezierPoint);
+        } else {
+          m_tool_manager.set_type(ToolManager::Type::RemoveBezierPoint);
+        }
+        m_disable_tools_combo = true;
       }
-      InputStateChangedEvent event(m_input_state);
-      m_send_event(event);
     }
   };
-  if (m_ui_mode == UIMode::REMOVE_BEZIER_POINT) {
+  if (m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
     remove_button_func();
     ImGui::PopStyleColor();
@@ -269,13 +410,12 @@ void UILayer::show_bezier_panel(const mge::Entity& entity) {
   static int selected = 1;
   if (ImGui::BeginCombo("##berenstein_polygon", options[selected].c_str())) {
     for (int n = 0; n < options.size(); n++) {
-      const bool is_selected = component.get_bezier_polygon_status() && !n ||
-                               !component.get_bezier_polygon_status() && n;
+      const bool is_selected =
+          component.get_bezier_polygon_status() && !n || !component.get_bezier_polygon_status() && n;
       if (ImGui::Selectable(options[n].c_str(), is_selected)) {
         selected = n;
-        ShowBerensteinPolygonEvent event(
-            entity.get_component<mge::TagComponent>(), !n);
-        m_send_event(event);
+        BezierUpdateBerensteinPolygonStateEvent polygon_event(entity.get_id(), !n);
+        SendEvent(polygon_event);
       }
 
       if (is_selected) ImGui::SetItemDefaultFocus();
@@ -285,69 +425,82 @@ void UILayer::show_bezier_panel(const mge::Entity& entity) {
 }
 
 void UILayer::show_tools_panel() {
-  std::string selected_value = to_string(m_input_state);
-  if (ImGui::BeginCombo("##modes", selected_value.c_str())) {
-    for (int n = 0; n < INPUT_STATE_SIZE; n++) {
-      const bool is_selected = (static_cast<int>(m_input_state) == (1 << n));
-      if (ImGui::Selectable(to_string(static_cast<InputState>(1 << n)).c_str(),
-                            is_selected)) {
-        m_input_state = static_cast<InputState>(1 << n);
-        InputStateChangedEvent event(m_input_state);
-        m_send_event(event);
-        m_ui_mode = UIMode::NONE;
+  using Tool = ToolManager::Type;
+  static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete, Tool::Move, Tool::Scale, Tool::Rotate};
+  std::string selected_value = ToolManager::get_name(m_tool_manager.get_type());
+  ImGui::BeginDisabled(m_disable_tools_combo);
+  if (ImGui::BeginCombo("##tools", selected_value.c_str())) {
+    for (auto tool : displayable_tools) {
+      bool is_selected = m_tool_manager.get_type() == tool;
+      if (ImGui::Selectable(ToolManager::get_name(tool).c_str(), is_selected)) {
+        m_tool_manager.set_type_and_update_previous(tool);
       }
 
       if (is_selected) ImGui::SetItemDefaultFocus();
     }
     ImGui::EndCombo();
   }
+  ImGui::EndDisabled();
+
+  if (m_tool_manager.get_type() == ToolManager::Type::Rotate) {
+    for (auto& axis_type : std::vector{RotationAxis::Type::X, RotationAxis::Type::Y, RotationAxis::Type::Z}) {
+      if (m_rotation_axis.get_type() == axis_type) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
+        if (ImGui::Button(RotationAxis::get_name(axis_type).c_str())) {
+          m_rotation_axis.set_type(axis_type);
+        }
+        ImGui::PopStyleColor();
+      } else {
+        if (ImGui::Button(RotationAxis::get_name(axis_type).c_str())) {
+          m_rotation_axis.set_type(axis_type);
+        }
+      }
+      ImGui::SameLine();
+    }
+    ImGui::Text(" ");
+  }
 
   ImGui::Text("add object:");
   if (ImGui::Button("point")) {
     AddPointEvent point_event;
-    m_send_event(point_event);
+    SendEvent(point_event);
   }
   ImGui::SameLine();
   if (ImGui::Button("torus")) {
-    AddTorusEvent torus_event;
-    m_send_event(torus_event);
+    AddTorusEvent torus_event(4.0f, 6.0f, 8, 8);
+    SendEvent(torus_event);
   }
   ImGui::SameLine();
-  if (ImGui::Button("bezier")) {
-    AddBezierEvent bezier_event;
-    m_send_event(bezier_event);
+  if (ImGui::Button("bezier") && m_selection_manager.get_selected_count() > 1) {
+    AddBezierEvent bezier_event(m_selection_manager.get_selected_ids());
+    SendEvent(bezier_event);
   }
 }
 
 void UILayer::show_entities_list_panel() {
-  for (auto& [tag, selected] : m_entities) {
-    if (ImGui::Selectable(tag.c_str(), selected)) {
-      if (m_displayed_entity.has_value() &&
-          m_displayed_entity->get().has_component<BezierComponent>()) {
-        auto& bezier_tag =
-            m_displayed_entity->get().get_component<mge::TagComponent>();
-        if (selected) {
-          RemoveControlPointByTagEvent event(bezier_tag, tag);
-          m_send_event(event);
-        } else {
-          AddControlPointByTagEvent event(bezier_tag, tag);
-          m_send_event(event);
+  for (auto id : m_selection_manager.get_all_entities_ids()) {
+    if (ImGui::Selectable(m_selection_manager.get_tag(id).c_str(), m_selection_manager.is_selected(id))) {
+      if (m_selection_manager.get_displayed_entity().has_value() &&
+          m_selection_manager.get_displayed_entity()->get().has_component<BezierComponent>()) {
+        auto bezier_id = m_selection_manager.get_displayed_entity().value().get().get_id();
+        if (m_selection_manager.is_selected(id) && m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+          m_selection_manager.unselect(id);
+          BezierDeleteControlPointEvent event(bezier_id, id);
+          SendEvent(event);
+        } else if (!m_selection_manager.is_selected(id) &&
+                   m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+          m_selection_manager.select(id, false);
+          BezierAddControlPointEvent event(bezier_id, id);
+          SendEvent(event);
         }
       } else {
         if (!ImGui::GetIO().KeyCtrl) {
-          for (auto& [_, selected] : m_entities) {
-            selected = false;
-          }
-          UnSelectAllEntitiesEvent event;
-          m_send_event(event);
+          m_selection_manager.unselect_all();
         }
-        selected = !selected;
-        if (selected) {
-          SelectEntityByTagEvent event(tag);
-          m_send_event(event);
+        if (m_selection_manager.is_selected(id)) {
+          m_selection_manager.unselect(id);
         } else {
-          UnSelectEntityByTagEvent event(tag);
-          m_send_event(event);
+          m_selection_manager.select(id, true);
         }
       }
     }
@@ -375,78 +528,153 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
     show_bezier_panel(entity);
   }
 
-  if (entity.has_component<mge::RenderableComponent<GeometryVertex>>() &&
-      entity.has_component<TorusComponent>()) {
+  if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {
     show_renderable_component(entity);
   }
 
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0, 0.0, 0.0, 1.0));
   if (ImGui::Button("Remove", ImVec2(ImGui::GetWindowSize().x, 0.0f))) {
-    DeleteEntityByTagEvent event(entity.get_component<mge::TagComponent>());
-    m_send_event(event);
+    mge::DeleteEntityEvent event(entity.get_id());
+    SendEngineEvent(event);
+    if (event.is_handled()) {
+      m_selection_manager.remove_entity(event.id);
+    }
   }
   ImGui::PopStyleColor();
 }
 
-bool UILayer::on_new_entity(NewEntityEvent& event) {
-  m_entities.emplace(event.get_tag(), false);
-  if (m_displayed_entity.has_value() &&
-      m_displayed_entity->get().has_component<BezierComponent>()) {
-    AddControlPointByTagEvent add_event(
-        m_displayed_entity->get().get_component<mge::TagComponent>(),
-        event.get_tag());
-    m_send_event(add_event);
+bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {
+  mge::QueryEntityByIdEvent query_event(event.id);
+  SendEngineEvent(query_event);
+  MGE_ASSERT(query_event.entity.has_value(), "Queried entity doesn't exist: {}", static_cast<int>(event.id));
+  auto& entity = query_event.entity.value().get();
+  if (!entity.has_component<mge::TagComponent>() || !entity.has_component<SelectibleComponent>()) return false;
+  m_selection_manager.add_entity(entity.get_id(), entity.get_component<mge::TagComponent>().get_tag());
+  if (m_selection_manager.get_displayed_entity().has_value() &&
+      m_selection_manager.get_displayed_entity()->get().has_component<BezierComponent>()) {
+    BezierAddControlPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(), entity.get_id());
+    SendEvent(add_event);
+    m_selection_manager.select(entity.get_id(), false);
   }
   return true;
 }
 
-bool UILayer::on_removed_entity(RemoveEntityEvent& event) {
-  m_entities.erase(event.get_tag());
+bool UILayer::on_deleted_entity(mge::DeletedEntityEvent& event) { return m_selection_manager.remove_entity(event.id); }
+
+bool UILayer::on_mouse_moved(mge::MouseMovedEvent& event) {
+  auto& window = event.source_window;
+  if (window.is_key_pressed(mge::KeyboardKey::LeftShift)) {
+    send_camera_move_events(event);
+    return true;
+  }
+
+  if (window.is_key_pressed(mge::KeyboardKey::LeftControl)) {
+    CursorMoveEvent cursor_event(event.end_position);
+    SendEvent(cursor_event);
+    if (m_tool_manager.get_type() != ToolManager::Type::Move) return true;
+  }
+
+  switch (m_tool_manager.get_type()) {
+    case ToolManager::Type::Scale:
+      if (window.is_mouse_pressed(mge::MouseButton::Left)) {
+        RelativeScaleEvent scale_event(m_selection_manager.get_selected_ids(), event.start_position,
+                                       event.end_position);
+        SendEvent(scale_event);
+      }
+      break;
+    case ToolManager::Type::Rotate:
+      if (window.is_mouse_pressed(mge::MouseButton::Left)) {
+        RelativeRotateEvent rotate_event(m_selection_manager.get_selected_ids(), event.start_position,
+                                         event.end_position, m_rotation_axis.get_value());
+        SendEvent(rotate_event);
+      }
+      break;
+    case ToolManager::Type::Move:
+      if (window.is_mouse_pressed(mge::MouseButton::Left)) {
+        TranslateToCursorEvent translate_event(m_selection_manager.get_selected_ids());
+        SendEvent(translate_event);
+      }
+      break;
+    default:
+      break;
+  }
   return true;
 }
 
-bool UILayer::on_select_entity_by_tag(SelectEntityByTagEvent& event) {
-  m_entities.at(event.get_tag()) = true;
-  return false;
-}
+bool UILayer::on_mouse_button_pressed(mge::MouseButtonUpdatedEvent& event) {
+  if (event.state != mge::InputState::Press) return false;
+  if (event.mods & mge::InputModifierKey::Shift) {
+    return true;
+  }
 
-bool UILayer::on_unselect_entity_by_tag(UnSelectEntityByTagEvent event) {
-  m_entities.at(event.get_tag()) = false;
-  return false;
-}
-
-bool UILayer::on_select_entity_by_position(SelectEntityByPositionEvent& event) {
-  switch (m_ui_mode) {
-    case UIMode::NONE:
-      return false;
-    case UIMode::ADD_BEZIER_POINT: {
-      AddControlPointByPositionEvent add_event(
-          m_displayed_entity.value().get().get_component<mge::TagComponent>(),
-          event.get_position());
-      m_send_event(add_event);
-    }
-      return true;
-    case UIMode::REMOVE_BEZIER_POINT: {
-      RemoveControlPointByPositionEvent remove_event(
-          m_displayed_entity.value().get().get_component<mge::TagComponent>(),
-          event.get_position());
-      m_send_event(remove_event);
-    }
-      return true;
+  switch (m_tool_manager.get_type()) {
+    case ToolManager::Type::Select:
+      if (event.button == mge::MouseButton::Left) {
+        mge::QueryEntityByPositionEvent query_event(event.position);
+        SendEngineEvent(query_event);
+        if (query_event.entity.has_value()) {
+          auto id = query_event.entity.value().get().get_id();
+          if (m_selection_manager.is_selected(id)) {
+            m_selection_manager.unselect(id);
+          } else {
+            m_selection_manager.select(id, true);
+          }
+        } else {
+          m_selection_manager.unselect_all();
+        }
+      }
+      break;
+    case ToolManager::Type::Delete:
+      if (event.button == mge::MouseButton::Left) {
+        mge::QueryEntityByPositionEvent query_event(event.position);
+        SendEngineEvent(query_event);
+        if (query_event.entity.has_value()) {
+          auto id = query_event.entity.value().get().get_id();
+          mge::DeleteEntityEvent delete_event(id);
+          SendEngineEvent(delete_event);
+          if (delete_event.is_handled()) m_selection_manager.remove_entity(id);
+        }
+      }
+      break;
     default:
       return false;
   }
-}
-
-bool UILayer::on_unselect_all_entities(UnSelectAllEntitiesEvent event) {
-  for (auto& [_, selected] : m_entities) {
-    selected = false;
-  }
-  m_displayed_entity = std::nullopt;
-  return false;
-}
-
-bool UILayer::on_update_displayed_entity(UpdateDisplayedEntityEvent& event) {
-  m_displayed_entity = event.get_entity();
   return true;
+}
+
+bool UILayer::on_mouse_scroll(mge::MouseScrollEvent& event) {
+  send_camera_zoom_event(event);
+
+  return true;
+}
+
+void UILayer::send_camera_move_events(mge::MouseMovedEvent& event) {
+  auto& window = event.source_window;
+  if (window.is_mouse_pressed(mge::MouseButton::Left)) {
+    float sensitivity = 1.0f;
+    mge::CameraAngleChangedEvent cam_event(sensitivity * event.get_offset().x, sensitivity * event.get_offset().y);
+    SendEngineEvent(cam_event);
+    return;
+  }
+
+  if (window.is_mouse_pressed(mge::MouseButton::Right)) {
+    float sensitivity = 0.5f;
+    mge::CameraPositionChangedEvent cam_event(
+        glm::vec2(-sensitivity * event.get_offset().x, -sensitivity * event.get_offset().y));
+    SendEngineEvent(cam_event);
+    return;
+  }
+
+  if (window.is_mouse_pressed(mge::MouseButton::Middle)) {
+    float sensitivity = 1.005f;
+    mge::CameraZoomEvent cam_event(std::pow(sensitivity, event.get_offset().x));
+    SendEngineEvent(cam_event);
+    return;
+  }
+}
+
+void UILayer::send_camera_zoom_event(mge::MouseScrollEvent& event) {
+  float sensitivity = 1.1f;
+  mge::CameraZoomEvent cam_event(std::pow(sensitivity, -event.y_offset));
+  SendEngineEvent(cam_event);
 }

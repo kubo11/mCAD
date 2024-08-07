@@ -3,7 +3,7 @@
 
 #include "mge.hh"
 
-#include "geometry_vertex.hh"
+#include "../vertices/geometry_vertex.hh"
 
 struct PointComponent {
   static float s_scale;
@@ -11,14 +11,7 @@ struct PointComponent {
   PointComponent() = default;
   PointComponent(PointComponent&&) = default;
   inline PointComponent& operator=(PointComponent&& other) { return *this; }
-  static std::string get_new_name() {
-    return "Point " + std::to_string(s_new_id++);
-  }
-
-  static std::unique_ptr<mge::VertexArray<GeometryVertex>> get_vertex_array();
-  static std::shared_ptr<mge::Shader> get_shader();
-
-  void on_construct(mge::Entity& entity);
+  static std::string get_new_name() { return "Point " + std::to_string(s_new_id++); }
 
  private:
   static unsigned int s_new_id;

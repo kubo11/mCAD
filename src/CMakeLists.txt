@@ -1,9 +1,6 @@
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/src/*.cc)
 
-add_executable(${PROJECT_NAME} ${SOURCES}
-        events/bezier_event.h
-        geometry/bezier_component.cpp
-)
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
 

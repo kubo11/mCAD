@@ -1,9 +1,9 @@
-#ifndef MCAD_GRID_LAYER_HH
-#define MCAD_GRID_LAYER_HH
+#ifndef MCAD_GRID_LAYER
+#define MCAD_GRID_LAYER
 
 #include "mge.hh"
 
-#include "../geometry/geometry_vertex.hh"
+#include "../vertices/grid_vertex.hh"
 
 class GridLayer : public mge::Layer {
  public:
@@ -12,12 +12,11 @@ class GridLayer : public mge::Layer {
 
   virtual void configure() override;
   virtual void update() override;
-  virtual void handle_event(mge::Event& event, float dt) override;
 
  private:
-  std::unique_ptr<mge::VertexArray<GeometryVertex>> m_vertex_array = nullptr;
-  std::shared_ptr<mge::Shader> m_shader;
+  std::unique_ptr<mge::RenderPipeline<GridVertex>> m_render_pipeline = nullptr;
+  std::unique_ptr<mge::RenderableComponent<GridVertex>> m_grid = nullptr;
   mge::Scene& m_scene;
 };
 
-#endif  // MCAD_GRID_LAYER_HH
+#endif  // MCAD_GRID_LAYER
