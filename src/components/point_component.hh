@@ -6,8 +6,6 @@
 #include "../vertices/geometry_vertex.hh"
 
 struct PointComponent {
-  static float s_scale;
-
   PointComponent() = default;
   PointComponent(PointComponent&&) = default;
   inline PointComponent& operator=(PointComponent&& other) { return *this; }

@@ -1,5 +1,6 @@
 #include "ui_layer.hh"
-#include "../components/bezier_component.hh"
+#include "../components/bezier_curve_c0_component.hh"
+#include "../components/bezier_curve_c2_component.hh"
 #include "../components/selectible_component.hh"
 #include "../events/events.hh"
 #include "../input_state.hh"
@@ -73,6 +74,10 @@ void ToolManager::restore_type() { m_current_tool = m_previous_tool; }
 SelectionManager::SelectionManager() : m_displayed_entity(std::nullopt), m_selected_count(0) {}
 
 void SelectionManager::select(mge::EntityId id, bool is_parent) {
+  if (m_virtual_entities.contains(id)) {
+    select_virtual(id, is_parent);
+    return;
+  }
   if (m_entities.at(id).is_selected) return;
   m_entities.at(id).is_selected = true;
   m_entities.at(id).is_parent = is_parent;
@@ -93,11 +98,50 @@ void SelectionManager::select(mge::EntityId id, bool is_parent) {
   }
 }
 
+void SelectionManager::select_virtual(mge::EntityId id, bool is_parent) {
+  if (m_virtual_entities.at(id).is_selected) return;
+  m_virtual_entities.at(id).is_selected = true;
+  m_virtual_entities.at(id).is_parent = is_parent;
+  m_selected_count++;
+  if (is_parent) m_parent_count++;
+  m_selected_entities.push_back(id);
+  mge::QueryEntityByIdEvent query_event(id);
+  SendEngineEvent(query_event);
+  query_event.entity.value().get().propagate([this](auto& entity) { select(entity.get_id(), false); });
+  SelectionUpdateEvent selection_event(id, true, is_parent);
+  SendEvent(selection_event);
+  if (is_parent) {
+    if (m_parent_count == 1) {
+      m_displayed_entity = query_event.entity;
+    } else {
+      m_displayed_entity = std::nullopt;
+    }
+  }
+}
+
 void SelectionManager::unselect(mge::EntityId id) {
+  if (m_virtual_entities.contains(id)) {
+    unselect_virtual(id);
+    return;
+  }
   if (!m_entities.at(id).is_selected) return;
   m_entities.at(id).is_selected = false;
   bool is_parent = m_entities.at(id).is_parent;
   m_entities.at(id).is_parent = true;
+  m_selected_count--;
+  if (is_parent) m_parent_count--;
+  mge::QueryEntityByIdEvent query_event(id);
+  SendEngineEvent(query_event);
+  query_event.entity.value().get().propagate([this](auto& entity) { unselect(entity.get_id()); });
+  SelectionUpdateEvent selection_event(id, false, is_parent);
+  SendEvent(selection_event);
+}
+
+void SelectionManager::unselect_virtual(mge::EntityId id) {
+  if (!m_virtual_entities.at(id).is_selected) return;
+  m_virtual_entities.at(id).is_selected = false;
+  bool is_parent = m_virtual_entities.at(id).is_parent;
+  m_virtual_entities.at(id).is_parent = true;
   m_selected_count--;
   if (is_parent) m_parent_count--;
   mge::QueryEntityByIdEvent query_event(id);
@@ -112,6 +156,10 @@ void SelectionManager::unselect_all() {
     data.is_selected = false;
     data.is_parent = true;
   }
+  for (auto& [id, data] : m_virtual_entities) {
+    data.is_selected = false;
+    data.is_parent = true;
+  }
   m_selected_count = 0;
   m_parent_count = 0;
   m_displayed_entity = std::nullopt;
@@ -122,13 +170,18 @@ void SelectionManager::unselect_all() {
 
 mge::OptionalEntity SelectionManager::get_displayed_entity() const { return m_displayed_entity; }
 
-bool SelectionManager::is_selected(mge::EntityId id) const { return m_entities.at(id).is_selected; }
+bool SelectionManager::is_selected(mge::EntityId id) const {
+  return m_entities.contains(id) && m_entities.at(id).is_selected ||
+         m_virtual_entities.contains(id) && m_virtual_entities.at(id).is_selected;
+}
 
 const std::string& SelectionManager::get_tag(mge::EntityId id) const { return m_entities.at(id).tag; }
 
 unsigned int SelectionManager::get_selected_count() const { return m_selected_count; }
 
-bool SelectionManager::contains(mge::EntityId id) const { return m_entities.contains(id); }
+bool SelectionManager::contains(mge::EntityId id) const {
+  return m_entities.contains(id) || m_virtual_entities.contains(id);
+}
 
 bool SelectionManager::is_dirty() const { return m_selected_entities.size() != m_selected_count; }
 
@@ -147,11 +200,28 @@ bool SelectionManager::add_entity(mge::EntityId id, const std::string& tag) {
   return true;
 }
 
+bool SelectionManager::add_virtual_entity(mge::EntityId id) {
+  if (contains(id)) return false;
+
+  m_virtual_entities.emplace(id, false);
+
+  return true;
+}
+
 bool SelectionManager::remove_entity(mge::EntityId id) {
   if (!contains(id)) return false;
 
   unselect(id);
   m_entities.erase(id);
+
+  return true;
+}
+
+bool SelectionManager::remove_virtual_entity(mge::EntityId id) {
+  if (!contains(id)) return false;
+
+  unselect(id);
+  m_virtual_entities.erase(id);
 
   return true;
 }
@@ -167,12 +237,14 @@ bool SelectionManager::rename_entity(mge::EntityId id, const std::string& tag) {
 }
 
 void SelectionManager::validate_selected() {
-  mge::vector_remove_if<mge::EntityId>(m_selected_entities, [&entities = m_entities](auto& id) {
-    return !entities.contains(id) || !entities.at(id).is_selected;
-  });
+  mge::vector_remove_if<mge::EntityId>(
+      m_selected_entities, [&entities = m_entities, &virtual_entities = m_virtual_entities](auto& id) {
+        return (!entities.contains(id) || !entities.at(id).is_selected) &&
+               (!virtual_entities.contains(id) || !virtual_entities.at(id).is_selected);
+      });
   if (m_parent_count == 1) {
     for (auto id : m_selected_entities) {
-      if (m_entities.at(id).is_parent) {
+      if (m_virtual_entities.contains(id) || m_entities.at(id).is_parent) {
         mge::QueryEntityByIdEvent query_event(m_selected_entities.front());
         SendEngineEvent(query_event);
         m_displayed_entity = query_event.entity;
@@ -200,8 +272,8 @@ void UILayer::update() {
 
   mge::UIManager::start_frame();
 
-  //   bool dwnd = true;
-  //   ImGui::ShowDemoWindow(&dwnd);
+  bool dwnd = true;
+  ImGui::ShowDemoWindow(&dwnd);
 
   auto size = ImGui::GetMainViewport()->Size;
 
@@ -240,6 +312,40 @@ void UILayer::update() {
   ImGui::Render();
   mge::UIManager::end_frame();
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void UILayer::define_create_bezier_curve_dialog() {
+  static int type = 0;
+
+  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+  if (ImGui::BeginPopupModal("AddBezierCurve", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::Text("Add Bezier Curve");
+    ImGui::RadioButton("C0", &type, 0);
+    ImGui::SameLine();
+    ImGui::RadioButton("C2", &type, 1);
+    ImGui::SameLine();
+    ImGui::RadioButton("C2 Interp", &type, 2);
+    if (ImGui::Button("Create", ImVec2(120, 0))) {
+      if (type == 0) {
+        AddBezierCurveC0Event event(m_selection_manager.get_selected_ids());
+        SendEvent(event);
+      } else if (type == 1) {
+        AddBezierCurveC2Event event(m_selection_manager.get_selected_ids());
+        SendEvent(event);
+      } else if (type == 2) {
+        // TODO
+      }
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SetItemDefaultFocus();
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
 }
 
 void UILayer::show_tag_panel(const mge::Entity& entity) {
@@ -304,6 +410,8 @@ void UILayer::show_limited_transform_panel(const mge::Entity& entity) {
 
 void UILayer::show_renderable_component(const mge::Entity& entity) {
   auto& component = entity.get_component<mge::RenderableComponent<GeometryVertex>>();
+  if (component.get_registered_render_modes().size() < 2) return;
+  ImGui::Text("Render mode");
   std::string selected_value = to_string(component.get_render_mode());
   if (ImGui::BeginCombo("##render_mode", selected_value.c_str())) {
     auto render_modes = component.get_registered_render_modes();
@@ -355,7 +463,7 @@ void UILayer::show_torus_panel(const mge::Entity& entity) {
   }
 }
 
-void UILayer::show_bezier_panel(const mge::Entity& entity) {
+void UILayer::show_bezier_c0_curve_panel(const mge::Entity& entity) {
   ImGui::Text("Control points");
   auto add_button_func = [this]() {
     if (ImGui::Button("add")) {
@@ -405,17 +513,102 @@ void UILayer::show_bezier_panel(const mge::Entity& entity) {
   }
 
   ImGui::Text("Show berenstein polygon");
-  auto& component = entity.get_component<BezierComponent>();
+  auto& component = entity.get_component<BezierCurveC0Component>();
   std::array<std::string, 2> options = {"yes", "no"};
   static int selected = 1;
   if (ImGui::BeginCombo("##berenstein_polygon", options[selected].c_str())) {
     for (int n = 0; n < options.size(); n++) {
-      const bool is_selected =
-          component.get_bezier_polygon_status() && !n || !component.get_bezier_polygon_status() && n;
+      const bool is_selected = component.get_polygon_status() && !n || !component.get_polygon_status() && n;
       if (ImGui::Selectable(options[n].c_str(), is_selected)) {
         selected = n;
-        BezierUpdateBerensteinPolygonStateEvent polygon_event(entity.get_id(), !n);
+        BezierCurveC0UpdatePolygonStateEvent polygon_event(entity.get_id(), !n);
         SendEvent(polygon_event);
+      }
+
+      if (is_selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+}
+
+void UILayer::show_bezier_c2_curve_panel(const mge::Entity& entity) {
+  ImGui::Text("Control points");
+  auto add_button_func = [this]() {
+    if (ImGui::Button("add")) {
+      if (m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+        m_tool_manager.restore_type();
+        m_disable_tools_combo = false;
+      } else {
+        if (m_tool_manager.get_type() != ToolManager::Type::RemoveBezierPoint) {
+          m_tool_manager.set_type_and_update_previous(ToolManager::Type::AddBezierPoint);
+        } else {
+          m_tool_manager.set_type(ToolManager::Type::AddBezierPoint);
+        }
+        m_disable_tools_combo = true;
+      }
+    }
+  };
+  if (m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
+    add_button_func();
+    ImGui::PopStyleColor();
+  } else {
+    add_button_func();
+  }
+
+  auto remove_button_func = [this]() {
+    ImGui::SameLine();
+    if (ImGui::Button("remove")) {
+      if (m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+        m_tool_manager.restore_type();
+        m_disable_tools_combo = false;
+      } else {
+        if (m_tool_manager.get_type() != ToolManager::Type::AddBezierPoint) {
+          m_tool_manager.set_type_and_update_previous(ToolManager::Type::RemoveBezierPoint);
+        } else {
+          m_tool_manager.set_type(ToolManager::Type::RemoveBezierPoint);
+        }
+        m_disable_tools_combo = true;
+      }
+    }
+  };
+  if (m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
+    remove_button_func();
+    ImGui::PopStyleColor();
+  } else {
+    remove_button_func();
+  }
+
+  ImGui::Text("Show polygon");
+  auto& component = entity.get_component<BezierCurveC2Component>();
+  std::array<std::string, 2> polygon_options = {"yes", "no"};
+  static int polygon_selected = 1;
+  if (ImGui::BeginCombo("##polygon", polygon_options[polygon_selected].c_str())) {
+    for (int n = 0; n < polygon_options.size(); n++) {
+      const bool is_selected = component.get_polygon_status() && !n || !component.get_polygon_status() && n;
+      if (ImGui::Selectable(polygon_options[n].c_str(), is_selected)) {
+        polygon_selected = n;
+        BezierCurveC2UpdatePolygonStateEvent polygon_event(entity.get_id(), !n);
+        SendEvent(polygon_event);
+      }
+
+      if (is_selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+
+  ImGui::Text("Base");
+  std::unordered_map<BezierCurveBase, std::string> base_options = {{BezierCurveBase::Bernstein, "Bernstein"},
+                                                                   {BezierCurveBase::BSpline, "BSpline"}};
+  static BezierCurveBase base_selected = BezierCurveBase::Bernstein;
+  if (ImGui::BeginCombo("##berenstein_points", base_options[base_selected].c_str())) {
+    for (auto& [base, name] : base_options) {
+      const bool is_selected = component.get_base() == base;
+      if (ImGui::Selectable(name.c_str(), is_selected)) {
+        base_selected = base;
+        BezierCurveC2UpdateBaseEvent bernstein_event(entity.get_id(), base);
+        SendEvent(bernstein_event);
       }
 
       if (is_selected) ImGui::SetItemDefaultFocus();
@@ -472,25 +665,38 @@ void UILayer::show_tools_panel() {
   }
   ImGui::SameLine();
   if (ImGui::Button("bezier") && m_selection_manager.get_selected_count() > 1) {
-    AddBezierEvent bezier_event(m_selection_manager.get_selected_ids());
-    SendEvent(bezier_event);
+    ImGui::OpenPopup("AddBezierCurve");
   }
+  define_create_bezier_curve_dialog();
 }
 
 void UILayer::show_entities_list_panel() {
   for (auto id : m_selection_manager.get_all_entities_ids()) {
     if (ImGui::Selectable(m_selection_manager.get_tag(id).c_str(), m_selection_manager.is_selected(id))) {
       if (m_selection_manager.get_displayed_entity().has_value() &&
-          m_selection_manager.get_displayed_entity()->get().has_component<BezierComponent>()) {
+          (m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC0Component>())) {
         auto bezier_id = m_selection_manager.get_displayed_entity().value().get().get_id();
         if (m_selection_manager.is_selected(id) && m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
           m_selection_manager.unselect(id);
-          BezierDeleteControlPointEvent event(bezier_id, id);
+          BezierCurveC0DeletePointEvent event(bezier_id, id);
           SendEvent(event);
         } else if (!m_selection_manager.is_selected(id) &&
                    m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
           m_selection_manager.select(id, false);
-          BezierAddControlPointEvent event(bezier_id, id);
+          BezierCurveC0AddPointEvent event(bezier_id, id);
+          SendEvent(event);
+        }
+      } else if (m_selection_manager.get_displayed_entity().has_value() &&
+                 m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC2Component>()) {
+        auto bezier_id = m_selection_manager.get_displayed_entity().value().get().get_id();
+        if (m_selection_manager.is_selected(id) && m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+          m_selection_manager.unselect(id);
+          BezierCurveC2DeletePointEvent event(bezier_id, id);
+          SendEvent(event);
+        } else if (!m_selection_manager.is_selected(id) &&
+                   m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+          m_selection_manager.select(id, false);
+          BezierCurveC2AddPointEvent event(bezier_id, id);
           SendEvent(event);
         }
       } else {
@@ -524,8 +730,12 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
     show_torus_panel(entity);
   }
 
-  if (entity.has_component<BezierComponent>()) {
-    show_bezier_panel(entity);
+  if (entity.has_component<BezierCurveC0Component>()) {
+    show_bezier_c0_curve_panel(entity);
+  }
+
+  if (entity.has_component<BezierCurveC2Component>()) {
+    show_bezier_c2_curve_panel(entity);
   }
 
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {
@@ -548,13 +758,25 @@ bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {
   SendEngineEvent(query_event);
   MGE_ASSERT(query_event.entity.has_value(), "Queried entity doesn't exist: {}", static_cast<int>(event.id));
   auto& entity = query_event.entity.value().get();
-  if (!entity.has_component<mge::TagComponent>() || !entity.has_component<SelectibleComponent>()) return false;
-  m_selection_manager.add_entity(entity.get_id(), entity.get_component<mge::TagComponent>().get_tag());
+  if (!entity.has_component<SelectibleComponent>()) return false;
+  if (entity.has_component<mge::TagComponent>())
+    m_selection_manager.add_entity(entity.get_id(), entity.get_component<mge::TagComponent>().get_tag());
+  else {
+    m_selection_manager.add_virtual_entity(entity.get_id());
+    return true;
+  }
   if (m_selection_manager.get_displayed_entity().has_value() &&
-      m_selection_manager.get_displayed_entity()->get().has_component<BezierComponent>()) {
-    BezierAddControlPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(), entity.get_id());
-    SendEvent(add_event);
+      m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC0Component>() &&
+      entity.has_component<PointComponent>()) {
     m_selection_manager.select(entity.get_id(), false);
+    BezierCurveC0AddPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(), entity.get_id());
+    SendEvent(add_event);
+  } else if (m_selection_manager.get_displayed_entity().has_value() &&
+             m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC2Component>() &&
+             entity.has_component<PointComponent>()) {
+    m_selection_manager.select(entity.get_id(), false);
+    BezierCurveC2AddPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(), entity.get_id());
+    SendEvent(add_event);
   }
   return true;
 }

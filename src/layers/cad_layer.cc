@@ -1,6 +1,7 @@
 #include "cad_layer.hh"
 
-#include "../components/bezier_component.hh"
+#include "../components/bezier_curve_c0_component.hh"
+#include "../components/bezier_curve_c2_component.hh"
 #include "../components/color_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../components/point_component.hh"
@@ -17,6 +18,11 @@ CadLayer::CadLayer(mge::Scene& scene, const glm::ivec2& window_size)
 CadLayer::~CadLayer() { m_scene.clear(); }
 
 void CadLayer::configure() {
+  // Enable listeners
+  m_scene.enable_on_update_listeners<mge::TransformComponent>();
+  m_scene.enable_on_update_listeners<ColorComponent>();
+  m_scene.enable_on_update_listeners<BezierCurveC0Component>();
+  m_scene.enable_on_update_listeners<BezierCurveC2Component>();
   // Pipelines
   auto base_shader_path = fs::current_path() / "src" / "shaders";
   mge::RenderPipelineBuilder pipeline_builder;
@@ -56,9 +62,105 @@ void CadLayer::configure() {
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
-  auto point_vertices =
-      std::vector<GeometryVertex>{{{-1.0f, 1.0f, 0.0f}}, {{-1.0f, -1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},
-                                  {{-1.0f, 1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},  {{1.0f, 1.0f, 0.0f}}};
+  // auto point_vertices =
+  //     std::vector<GeometryVertex>{{{-1.0f, 1.0f, 0.0f}}, {{-1.0f, -1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},
+  //                                 {{-1.0f, 1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},  {{1.0f, 1.0f, 0.0f}}};
+  auto point_vertices = std::vector<GeometryVertex>{{{1.0f, 0.0f, 0.0f}},
+                                                    {{0.9807852804032304f, 0.19509032201612825f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9807852804032304f, 0.19509032201612825f, 0.0f}},
+                                                    {{0.9238795325112867f, 0.3826834323650898f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9238795325112867f, 0.3826834323650898f, 0.0f}},
+                                                    {{0.8314696123025452f, 0.5555702330196022f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.8314696123025452f, 0.5555702330196022f, 0.0f}},
+                                                    {{0.7071067811865476f, 0.7071067811865475f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.7071067811865476f, 0.7071067811865475f, 0.0f}},
+                                                    {{0.5555702330196023f, 0.8314696123025452f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.5555702330196023f, 0.8314696123025452f, 0.0f}},
+                                                    {{0.38268343236508984f, 0.9238795325112867f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.38268343236508984f, 0.9238795325112867f, 0.0f}},
+                                                    {{0.19509032201612833f, 0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.19509032201612833f, 0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 1.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, 1.0f, 0.0f}},
+                                                    {{-0.1950903220161282f, 0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.1950903220161282f, 0.9807852804032304f, 0.0f}},
+                                                    {{-0.3826834323650897f, 0.9238795325112867f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.3826834323650897f, 0.9238795325112867f, 0.0f}},
+                                                    {{-0.555570233019602f, 0.8314696123025455f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.555570233019602f, 0.8314696123025455f, 0.0f}},
+                                                    {{-0.7071067811865475f, 0.7071067811865476f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.7071067811865475f, 0.7071067811865476f, 0.0f}},
+                                                    {{-0.8314696123025453f, 0.5555702330196022f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.8314696123025453f, 0.5555702330196022f, 0.0f}},
+                                                    {{-0.9238795325112867f, 0.3826834323650899f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9238795325112867f, 0.3826834323650899f, 0.0f}},
+                                                    {{-0.9807852804032304f, 0.1950903220161286f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9807852804032304f, 0.1950903220161286f, 0.0f}},
+                                                    {{-1.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-1.0f, 0.0f, 0.0f}},
+                                                    {{-0.9807852804032304f, -0.19509032201612836f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9807852804032304f, -0.19509032201612836f, 0.0f}},
+                                                    {{-0.9238795325112868f, -0.38268343236508967f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9238795325112868f, -0.38268343236508967f, 0.0f}},
+                                                    {{-0.8314696123025455f, -0.555570233019602f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.8314696123025455f, -0.555570233019602f, 0.0f}},
+                                                    {{-0.7071067811865477f, -0.7071067811865475f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.7071067811865477f, -0.7071067811865475f, 0.0f}},
+                                                    {{-0.5555702330196022f, -0.8314696123025452f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.5555702330196022f, -0.8314696123025452f, 0.0f}},
+                                                    {{-0.38268343236509034f, -0.9238795325112865f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.38268343236509034f, -0.9238795325112865f, 0.0f}},
+                                                    {{-0.19509032201612866f, -0.9807852804032303f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.19509032201612866f, -0.9807852804032303f, 0.0f}},
+                                                    {{0.0f, -1.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, -1.0f, 0.0f}},
+                                                    {{0.1950903220161283f, -0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.1950903220161283f, -0.9807852804032304f, 0.0f}},
+                                                    {{0.38268343236509f, -0.9238795325112866f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.38268343236509f, -0.9238795325112866f, 0.0f}},
+                                                    {{0.5555702330196018f, -0.8314696123025455f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.5555702330196018f, -0.8314696123025455f, 0.0f}},
+                                                    {{0.7071067811865474f, -0.7071067811865477f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.7071067811865474f, -0.7071067811865477f, 0.0f}},
+                                                    {{0.8314696123025452f, -0.5555702330196022f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.8314696123025452f, -0.5555702330196022f, 0.0f}},
+                                                    {{0.9238795325112865f, -0.3826834323650904f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9238795325112865f, -0.3826834323650904f, 0.0f}},
+                                                    {{0.9807852804032303f, -0.19509032201612872f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9807852804032303f, -0.19509032201612872f, 0.0f}},
+                                                    {{1.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}}};
   auto point_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   point_vertex_buffer->bind();
   point_vertex_buffer->copy(point_vertices);
@@ -113,11 +215,18 @@ void CadLayer::configure() {
   AddEventListener(TorusEvents::Add, CadLayer::on_add_torus, this);
   AddEventListener(TorusEvents::RadiusUpdated, CadLayer::on_torus_radius_updated, this);
   AddEventListener(TorusEvents::GridDensityUpdated, CadLayer::on_torus_grid_density_updated, this);
-  // Bezier events
-  AddEventListener(BezierEvents::Add, CadLayer::on_add_bezier, this);
-  AddEventListener(BezierEvents::AddControlPoint, CadLayer::on_add_control_point, this);
-  AddEventListener(BezierEvents::DeleteControlPoint, CadLayer::on_delete_control_point, this);
-  AddEventListener(BezierEvents::UpdateBerensteinPolygonState, CadLayer::on_update_berenstein_polygon_state, this);
+  // Bezier Curve C0 events
+  AddEventListener(BezierCurveC0Events::Add, CadLayer::on_add_bezier_curve_c0, this);
+  AddEventListener(BezierCurveC0Events::AddPoint, CadLayer::on_add_bezier_curve_c0_point, this);
+  AddEventListener(BezierCurveC0Events::DeletePoint, CadLayer::on_delete_bezier_curve_c0_point, this);
+  AddEventListener(BezierCurveC0Events::UpdatePolygonState, CadLayer::on_update_bezier_curve_c0_polygon_state, this);
+  // Bezier Curve C2 events
+  AddEventListener(BezierCurveC2Events::Add, CadLayer::on_add_bezier_curve_c2, this);
+  AddEventListener(BezierCurveC2Events::AddPoint, CadLayer::on_add_bezier_curve_c2_point, this);
+  AddEventListener(BezierCurveC2Events::DeletePoint, CadLayer::on_delete_bezier_curve_c2_point, this);
+  AddEventListener(BezierCurveC2Events::UpdatePolygonState, CadLayer::on_update_bezier_curve_c2_polygon_state, this);
+  AddEventListener(BezierCurveC2Events::UpdateBase, CadLayer::on_update_bezier_curve_c2_base, this);
+  AddEventListener(BezierCurveC2Events::CreateBernsteinPoint, CadLayer::on_create_bernstein_point, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -163,6 +272,7 @@ mge::OptionalEntity CadLayer::get_closest_selectible_entity(glm::vec2 screen_spa
   auto& camera = m_scene.get_current_camera();
   auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
   m_scene.foreach<>(entt::get<mge::TransformComponent, SelectibleComponent>, entt::exclude<>, [&](auto& entity) {
+    if (!entity.template get_component<SelectibleComponent>().is_enabled()) return;
     auto& transform = entity.template get_component<mge::TransformComponent>();
     auto entity_position = proj_view * glm::vec4(transform.get_position(), 1.0f);
     auto corrected_entity_position = glm::vec3(entity_position) / entity_position.w;
@@ -190,36 +300,7 @@ void CadLayer::update_mass_center() {
       });
 }
 
-void CadLayer::update_bezier(mge::Entity& entity) {
-  auto& bezier = entity.get_component<BezierComponent>();
-  entity.patch<mge::RenderableComponent<GeometryVertex>>([&bezier](auto& renderable) {
-    auto vertices = bezier.generate_geometry();
-    auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
-    vertex_buffer.bind();
-    vertex_buffer.copy(vertices);
-    vertex_buffer.unbind();
-  });
-  entity.patch<BezierComponent>([](auto& bezier) {
-    bezier.template get_berenstein_polygon().template patch<mge::RenderableComponent<GeometryVertex>>(
-        [&bezier](auto& renderable) {
-          auto vertices = bezier.generate_polygon_geometry();
-          auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
-          vertex_buffer.bind();
-          vertex_buffer.copy(vertices);
-          vertex_buffer.unbind();
-        });
-  });
-}
-
-void CadLayer::update_parent_bezier(mge::Entity& entity) {
-  for (auto& parent : entity.get_parents()) {
-    if (parent.get().has_component<BezierComponent>()) {
-      update_bezier(parent.get());
-    }
-  }
-}
-
-void CadLayer::update_point(mge::Entity& entity) {
+void CadLayer::update_point_instance_data(mge::Entity& entity) {
   auto point_position = entity.get_component<mge::TransformComponent>().get_position();
   auto point_color = entity.get_component<ColorComponent>().get_color();
   entity.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
@@ -240,10 +321,6 @@ bool CadLayer::on_camera_position_changed(mge::CameraPositionChangedEvent& event
 
 bool CadLayer::on_camera_zoom(mge::CameraZoomEvent& event) {
   m_scene.get_current_camera().zoom(event.zoom, event.get_dt());
-  if (m_scene.get_current_camera().get_fov() > 1.0f && m_scene.get_current_camera().get_fov() < 45.0f) {
-    m_cursor.patch<mge::TransformComponent>([&event](auto& transform) { transform.scale(event.zoom); });
-    PointComponent::s_scale *= event.zoom;
-  }
   return true;
 }
 
@@ -259,11 +336,6 @@ bool CadLayer::on_delete_entity_by_id(mge::DeleteEntityEvent& event) {
     return false;
   }
 
-  // entity.run_and_propagate([&event](auto& entity) {
-  //   auto selection_event = SelectionUpdateEvent{event.id, false};
-  //   SendEvent(selection_event);
-  // });
-  // m_scene.destroy_entity(event.id);
   m_to_be_destroyed.push_back(event.id);
 
   return true;
@@ -306,8 +378,11 @@ bool CadLayer::on_add_point(AddPointEvent& event) {
           {mge::RenderMode::SOLID, *m_point_pipeline}},
       mge::RenderMode::SOLID, PointInstancedVertex(position, color));
   m_point_pipeline->update_instance_buffer();
+  entity.register_on_update<mge::TransformComponent>(&CadLayer::update_point_instance_data, this);
+  entity.register_on_update<ColorComponent>(&CadLayer::update_point_instance_data, this);
   mge::AddedEntityEvent add_event(entity.get_id());
   SendEngineEvent(add_event);
+  event.point = entity;
   return true;
 }
 
@@ -392,7 +467,7 @@ bool CadLayer::on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event
   return true;
 }
 
-bool CadLayer::on_add_bezier(AddBezierEvent& event) {
+bool CadLayer::on_add_bezier_curve_c0(AddBezierCurveC0Event& event) {
   auto& bezier_entity = m_scene.create_entity();
   auto& polygon_entity = m_scene.create_entity();
   for (auto id : event.control_points) {
@@ -404,11 +479,12 @@ bool CadLayer::on_add_bezier(AddBezierEvent& event) {
     }
     bezier_entity.add_child(entity);
   }
-  bezier_entity.template add_component<mge::TagComponent>(BezierComponent::get_new_name());
-  bezier_entity.template add_component<BezierComponent>(bezier_entity.get_children(), polygon_entity);
+  bezier_entity.template add_component<mge::TagComponent>(BezierCurveC0Component::get_new_name());
+  bezier_entity.template add_component<BezierCurveC0Component>(bezier_entity.get_children(), bezier_entity,
+                                                               polygon_entity);
   bezier_entity.template add_component<SelectibleComponent>();
   bezier_entity.template add_component<ColorComponent>();
-  auto& bezier = bezier_entity.get_component<BezierComponent>();
+  auto& bezier = bezier_entity.get_component<BezierCurveC0Component>();
   auto curve_vertices = bezier.generate_geometry();
   auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   curve_vertex_buffer->bind();
@@ -438,13 +514,17 @@ bool CadLayer::on_add_bezier(AddBezierEvent& event) {
                 "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
           })
       .disable();
+  bezier_entity.patch<BezierCurveC0Component>([&bezier_entity](auto& bezier_component) {
+    bezier_entity.template register_on_update<BezierCurveC0Component, BezierCurveC0Component>(
+        &BezierCurveC0Component::update_renderable, &bezier_component);
+  });
   mge::AddedEntityEvent add_event(bezier_entity.get_id());
   SendEngineEvent(add_event);
   return true;
 }
 
-bool CadLayer::on_add_control_point(BezierAddControlPointEvent& event) {
-  auto& point = m_scene.get_entity(event.control_point_id);
+bool CadLayer::on_add_bezier_curve_c0_point(BezierCurveC0AddPointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
   auto& bezier = m_scene.get_entity(event.bezier_id);
   if (!point.has_component<PointComponent>()) return false;
   point.patch<SelectibleComponent>([&bezier](auto& selectible) {
@@ -452,29 +532,139 @@ bool CadLayer::on_add_control_point(BezierAddControlPointEvent& event) {
   });
   point.patch<ColorComponent>(
       [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
-  update_point(point);
-  bezier.add_child(point);
-  bezier.patch<BezierComponent>([&point](auto& component) { component.add_control_point(point); });
-  update_bezier(bezier);
+  bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.add_point(point); });
   return true;
 }
 
-bool CadLayer::on_delete_control_point(BezierDeleteControlPointEvent& event) {
-  auto& point = m_scene.get_entity(event.control_point_id);
+bool CadLayer::on_delete_bezier_curve_c0_point(BezierCurveC0DeletePointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
   auto& bezier = m_scene.get_entity(event.bezier_id);
   if (!point.has_component<PointComponent>()) return false;
   point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
-  point.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
-  update_point(point);
+  auto color = point.get_component<SelectibleComponent>().get_regular_color();
+  point.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
   bezier.remove_child(point);
-  bezier.patch<BezierComponent>([&point](auto& component) { component.remove_control_point(point); });
-  update_bezier(bezier);
+  bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.remove_point(point); });
   return true;
 }
 
-bool CadLayer::on_update_berenstein_polygon_state(BezierUpdateBerensteinPolygonStateEvent& event) {
-  m_scene.get_entity(event.id).patch<BezierComponent>(
-      [&event](auto& bezier) { bezier.set_berenstein_polygon_status(event.state); });
+bool CadLayer::on_update_bezier_curve_c0_polygon_state(BezierCurveC0UpdatePolygonStateEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierCurveC0Component>(
+      [&event](auto& bezier) { bezier.set_polygon_status(event.state); });
+  return true;
+}
+
+bool CadLayer::on_add_bezier_curve_c2(AddBezierCurveC2Event& event) {
+  auto& bezier_entity = m_scene.create_entity();
+  auto& polygon_entity = m_scene.create_entity();
+  for (auto id : event.control_points) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<PointComponent>()) {
+      m_scene.destroy_entity(bezier_entity);
+      m_scene.destroy_entity(polygon_entity);
+      return false;
+    }
+    bezier_entity.add_child(entity);
+  }
+  bezier_entity.template add_component<mge::TagComponent>(BezierCurveC2Component::get_new_name());
+  bezier_entity.template add_component<BezierCurveC2Component>(bezier_entity.get_children(), bezier_entity,
+                                                               polygon_entity);
+  bezier_entity.template add_component<SelectibleComponent>();
+  bezier_entity.template add_component<ColorComponent>();
+  auto& bezier = bezier_entity.get_component<BezierCurveC2Component>();
+  auto curve_vertices = bezier.generate_geometry();
+  auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  curve_vertex_buffer->bind();
+  curve_vertex_buffer->copy(curve_vertices);
+  curve_vertex_buffer->unbind();
+  auto curve_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(std::move(curve_vertex_buffer),
+                                                                               GeometryVertex::get_vertex_attributes());
+  bezier_entity.template add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(curve_vertex_array), [&bezier_entity](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+      });
+  auto polygon_vertices = bezier.generate_polygon_geometry();
+  auto polygon_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  polygon_vertex_buffer->bind();
+  polygon_vertex_buffer->copy(polygon_vertices);
+  polygon_vertex_buffer->unbind();
+  auto polygon_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(polygon_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  polygon_entity
+      .template add_component<mge::RenderableComponent<GeometryVertex>>(
+          mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_polygon_pipeline}},
+          mge::RenderMode::WIREFRAME, std::move(polygon_vertex_array),
+          [&bezier_entity](auto& render_pipeline) {
+            render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+                "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+          })
+      .disable();
+  bezier_entity.patch<BezierCurveC2Component>([&bezier_entity](auto& bezier_component) {
+    bezier_entity.template register_on_update<BezierCurveC2Component, BezierCurveC2Component>(
+        &BezierCurveC2Component::update_renderable, &bezier_component);
+  });
+  mge::AddedEntityEvent add_event(bezier_entity.get_id());
+  SendEngineEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_add_bezier_curve_c2_point(BezierCurveC2AddPointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
+  auto& bezier = m_scene.get_entity(event.bezier_id);
+  if (!point.has_component<PointComponent>()) return false;
+  point.patch<SelectibleComponent>([&bezier](auto& selectible) {
+    selectible.set_selection(bezier.get_component<SelectibleComponent>().is_selected());
+  });
+  point.patch<ColorComponent>(
+      [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
+  bezier.patch<BezierCurveC2Component>([&point](auto& component) { component.add_point(point); });
+  return true;
+}
+
+bool CadLayer::on_delete_bezier_curve_c2_point(BezierCurveC2DeletePointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
+  auto& bezier = m_scene.get_entity(event.bezier_id);
+  if (!point.has_component<PointComponent>()) return false;
+  point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
+  auto color = point.get_component<SelectibleComponent>().get_regular_color();
+  point.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
+  bezier.remove_child(point);
+  bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.remove_point(point); });
+  return true;
+}
+
+bool CadLayer::on_update_bezier_curve_c2_polygon_state(BezierCurveC2UpdatePolygonStateEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierCurveC2Component>(
+      [&event](auto& bezier) { bezier.set_polygon_status(event.state); });
+  return true;
+}
+
+bool CadLayer::on_update_bezier_curve_c2_base(BezierCurveC2UpdateBaseEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierCurveC2Component>([&event](auto& bezier) { bezier.set_base(event.base); });
+  return true;
+}
+
+bool CadLayer::on_create_bernstein_point(CreateBernsteinPointEvent& event) {
+  auto& entity = m_scene.create_entity();
+  entity.template add_component<PointComponent>();
+  entity.template add_component<mge::TransformComponent>();
+  auto point_position = entity.get_component<mge::TransformComponent>().get_position();
+  entity.template add_component<SelectibleComponent>(glm::vec3{0.0f, 1.0f, 1.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
+  entity.template add_component<ColorComponent>(entity.get_component<SelectibleComponent>().get_regular_color());
+  auto position = entity.get_component<mge::TransformComponent>().get_position();
+  auto color = entity.get_component<ColorComponent>().get_color();
+  entity.template add_component<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+      mge::InstancedRenderPipelineMap<GeometryVertex, PointInstancedVertex>{
+          {mge::RenderMode::SOLID, *m_point_pipeline}},
+      mge::RenderMode::SOLID, PointInstancedVertex(position, color));
+  m_point_pipeline->update_instance_buffer();
+  entity.register_on_update<mge::TransformComponent>(&CadLayer::update_point_instance_data, this);
+  entity.register_on_update<ColorComponent>(&CadLayer::update_point_instance_data, this);
+  event.bernstein_point = entity;
+  mge::AddedEntityEvent add_event(entity.get_id());
+  SendEngineEvent(add_event);
   return true;
 }
 
@@ -492,9 +682,6 @@ bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
     entity.patch<mge::TransformComponent>([&offset](auto& transform) { transform.translate(offset); });
-    if (!entity.has_component<PointComponent>()) continue;
-    update_point(entity);
-    update_parent_bezier(entity);
   }
 
   update_mass_center();
@@ -511,9 +698,6 @@ bool CadLayer::on_relative_scale(RelativeScaleEvent& event) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
     entity.patch<mge::TransformComponent>([&scale_factor](auto& transform) { transform.scale(scale_factor); });
-    if (!entity.has_component<PointComponent>()) continue;
-    update_point(entity);
-    update_parent_bezier(entity);
   }
 
   m_mass_center.patch<MassCenterComponent>([](auto& center) { center.update_position(); });
@@ -538,9 +722,6 @@ bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
       transform.rotate(angle, event.axis);
       transform.set_position(center + glm::angleAxis(angle, event.axis) * (transform.get_position() - center));
     });
-    if (!entity.has_component<PointComponent>()) continue;
-    update_point(entity);
-    update_parent_bezier(entity);
   }
 
   update_mass_center();
@@ -553,9 +734,6 @@ bool CadLayer::on_translate(TranslateEvent& event) {
   entity.run_and_propagate([this, &event](auto& entity) {
     if (!entity.template has_component<mge::TransformComponent>()) return;
     entity.template patch<mge::TransformComponent>([&event](auto& transform) { transform.set_position(event.offset); });
-    if (!entity.template has_component<PointComponent>()) return;
-    update_point(entity);
-    update_parent_bezier(entity);
   });
   update_mass_center();
 
@@ -567,9 +745,6 @@ bool CadLayer::on_scale(ScaleEvent& event) {
   entity.run_and_propagate([this, &event](auto& entity) {
     if (!entity.template has_component<mge::TransformComponent>()) return;
     entity.template patch<mge::TransformComponent>([&event](auto& transform) { transform.set_scale(event.scale); });
-    if (!entity.template has_component<PointComponent>()) return;
-    update_point(entity);
-    update_parent_bezier(entity);
   });
   update_mass_center();
   return true;
@@ -581,9 +756,6 @@ bool CadLayer::on_rotate(RotateEvent& event) {
     if (!entity.template has_component<mge::TransformComponent>()) return;
     entity.template patch<mge::TransformComponent>(
         [&event](auto& transform) { transform.set_rotation(event.rotation); });
-    if (!entity.template has_component<PointComponent>()) return;
-    update_point(entity);
-    update_parent_bezier(entity);
   });
   update_mass_center();
   return true;
@@ -628,16 +800,13 @@ bool CadLayer::on_selection_updated(SelectionUpdateEvent& event) {
   if (entity.get_component<SelectibleComponent>().is_selected() == event.selection) return false;
 
   entity.patch<SelectibleComponent>([&event](auto& selectible) { selectible.set_selection(event.selection); });
-  entity.patch<ColorComponent>([&event](auto& color) {
-    if (event.selection) {
-      color.set_color({0.8f, 0.3f, 0.0f});
-    } else {
-      color.set_color({0.0f, 0.0f, 0.0f});
-    }
-  });
-  if (entity.template has_component<PointComponent>()) {
-    update_point(entity);
+  glm::vec3 color;
+  if (event.selection) {
+    color = entity.get_component<SelectibleComponent>().get_selected_color();
+  } else {
+    color = entity.get_component<SelectibleComponent>().get_regular_color();
   }
+  entity.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
 
   if (entity.has_component<mge::TransformComponent>()) {
     if (event.selection) {
@@ -665,13 +834,12 @@ bool CadLayer::on_unselect_all_entities(UnselectAllEntitiesEvent& event) {
   m_mass_center.patch<MassCenterComponent>([](auto& mass_center) { mass_center.remove_all_entities(); });
   m_mass_center.remove_all_children();
   m_scene.foreach<>(entt::get<SelectibleComponent>, entt::exclude<>, [&](mge::Entity& entity) {
+    if (!entity.get_component<SelectibleComponent>().is_selected()) return;
     entity.patch<SelectibleComponent>([](auto& selectible) { selectible.set_selection(false); });
   });
   m_scene.foreach<>(entt::get<SelectibleComponent, ColorComponent>, entt::exclude<>, [&](mge::Entity& entity) {
-    entity.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
-    if (entity.has_component<PointComponent>()) {
-      update_point(entity);
-    }
+    auto color = entity.get_component<SelectibleComponent>().get_regular_color();
+    entity.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
   });
   m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
       [](auto& renderable) { renderable.disable(); });

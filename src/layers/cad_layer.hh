@@ -36,7 +36,7 @@ class CadLayer : public mge::Layer {
 
   void update_mass_center();
   void update_bezier(mge::Entity& entity);
-  void update_point(mge::Entity& entity);
+  void update_point_instance_data(mge::Entity& entity);
   void update_parent_bezier(mge::Entity& entity);
 
   // Camera events
@@ -56,11 +56,18 @@ class CadLayer : public mge::Layer {
   bool on_add_torus(AddTorusEvent& event);
   bool on_torus_radius_updated(TorusRadiusUpdatedEvent& event);
   bool on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event);
-  // Bezier events
-  bool on_add_bezier(AddBezierEvent& event);
-  bool on_add_control_point(BezierAddControlPointEvent& event);
-  bool on_delete_control_point(BezierDeleteControlPointEvent& event);
-  bool on_update_berenstein_polygon_state(BezierUpdateBerensteinPolygonStateEvent& event);
+  // Bezier Curve C0 events
+  bool on_add_bezier_curve_c0(AddBezierCurveC0Event& event);
+  bool on_add_bezier_curve_c0_point(BezierCurveC0AddPointEvent& event);
+  bool on_delete_bezier_curve_c0_point(BezierCurveC0DeletePointEvent& event);
+  bool on_update_bezier_curve_c0_polygon_state(BezierCurveC0UpdatePolygonStateEvent& event);
+  // Bezier Curve C2 events
+  bool on_add_bezier_curve_c2(AddBezierCurveC2Event& event);
+  bool on_add_bezier_curve_c2_point(BezierCurveC2AddPointEvent& event);
+  bool on_delete_bezier_curve_c2_point(BezierCurveC2DeletePointEvent& event);
+  bool on_update_bezier_curve_c2_polygon_state(BezierCurveC2UpdatePolygonStateEvent& event);
+  bool on_update_bezier_curve_c2_base(BezierCurveC2UpdateBaseEvent& event);
+  bool on_create_bernstein_point(CreateBernsteinPointEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

@@ -16,10 +16,17 @@ class SelectionManager {
     bool is_parent;
   };
 
+  struct VirtualEntityMapNode {
+    bool is_selected;
+    bool is_parent;
+  };
+
   SelectionManager();
 
   void select(mge::EntityId id, bool is_parent);
+  void select_virtual(mge::EntityId id, bool is_parent);
   void unselect(mge::EntityId id);
+  void unselect_virtual(mge::EntityId id);
   void unselect_all();
 
   mge::OptionalEntity get_displayed_entity() const;
@@ -33,13 +40,16 @@ class SelectionManager {
   std::vector<mge::EntityId> get_selected_ids();
 
   bool add_entity(mge::EntityId id, const std::string& tag);
+  bool add_virtual_entity(mge::EntityId id);
   bool remove_entity(mge::EntityId id);
+  bool remove_virtual_entity(mge::EntityId id);
   bool rename_entity(mge::EntityId id, const std::string& tag);
 
   void validate_selected();
 
  private:
   std::map<mge::EntityId, EntityMapNode> m_entities;
+  std::map<mge::EntityId, VirtualEntityMapNode> m_virtual_entities;
   std::vector<mge::EntityId> m_selected_entities;
   mge::OptionalEntity m_displayed_entity;
   unsigned int m_selected_count;
@@ -94,12 +104,15 @@ class UILayer : public mge::Layer {
   RotationAxis m_rotation_axis;
   SelectionManager m_selection_manager;
 
+  void define_create_bezier_curve_dialog();
+
   void show_tag_panel(const mge::Entity& entity);
   void show_transform_panel(const mge::Entity& entity);
   void show_limited_transform_panel(const mge::Entity& entity);
   void show_renderable_component(const mge::Entity& entity);
   void show_torus_panel(const mge::Entity& entity);
-  void show_bezier_panel(const mge::Entity& entity);
+  void show_bezier_c0_curve_panel(const mge::Entity& entity);
+  void show_bezier_c2_curve_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);
