@@ -552,9 +552,9 @@ bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {
   m_selection_manager.add_entity(entity.get_id(), entity.get_component<mge::TagComponent>().get_tag());
   if (m_selection_manager.get_displayed_entity().has_value() &&
       m_selection_manager.get_displayed_entity()->get().has_component<BezierComponent>()) {
+    m_selection_manager.select(entity.get_id(), false);
     BezierAddControlPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(), entity.get_id());
     SendEvent(add_event);
-    m_selection_manager.select(entity.get_id(), false);
   }
   return true;
 }
