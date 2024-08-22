@@ -34,6 +34,8 @@ class CadLayer : public mge::Layer {
   mge::OptionalEntity get_closest_selectible_entity(glm::vec2 screen_space_position) const;
   glm::vec3 unproject_point(glm::vec2 screen_space_position) const;
 
+  void test_chuj(mge::Entity& entity);
+
   void update_mass_center();
   void update_bezier(mge::Entity& entity);
   void update_point(mge::Entity& entity);
@@ -56,17 +58,17 @@ class CadLayer : public mge::Layer {
   bool on_add_torus(AddTorusEvent& event);
   bool on_torus_radius_updated(TorusRadiusUpdatedEvent& event);
   bool on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event);
-  // Bezier C0 Curve events
-  bool on_add_bezier_c0_curve(AddBezierC2CurveEvent& event);
-  bool on_add_bezier_c0_curve_point(BezierC2CurveAddPointEvent& event);
-  bool on_delete_bezier_c0_curve_point(BezierC2CurveDeletePointEvent& event);
-  bool on_update_bezier_c0_polygon_state(BezierC2CurveUpdatePolygonStateEvent& event);
-  // Bezier C2 Curve events
-  bool on_add_bezier_c2_curve(AddBezierC2CurveEvent& event);
-  bool on_add_bezier_c2_curve_point(BezierC2CurveAddPointEvent& event);
-  bool on_delete_bezier_c2_curve_point(BezierC2CurveDeletePointEvent& event);
-  bool on_update_bezier_c2_polygon_state(BezierC2CurveUpdatePolygonStateEvent& event);
-  bool on_update_bezier_c2_curve_base(BezierC2CurveUpdateBaseEvent& event);
+  // Bezier Curve C0 events
+  bool on_add_bezier_curve_c0(AddBezierCurveC0Event& event);
+  bool on_add_bezier_curve_c0_point(BezierCurveC0AddPointEvent& event);
+  bool on_delete_bezier_curve_c0_point(BezierCurveC0DeletePointEvent& event);
+  bool on_update_bezier_curve_c0_polygon_state(BezierCurveC0UpdatePolygonStateEvent& event);
+  // Bezier Curve C2 events
+  bool on_add_bezier_curve_c2(AddBezierCurveC2Event& event);
+  bool on_add_bezier_curve_c2_point(BezierCurveC2AddPointEvent& event);
+  bool on_delete_bezier_curve_c2_point(BezierCurveC2DeletePointEvent& event);
+  bool on_update_bezier_curve_c2_polygon_state(BezierCurveC2UpdatePolygonStateEvent& event);
+  bool on_update_bezier_curve_c2_base(BezierCurveC2UpdateBaseEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

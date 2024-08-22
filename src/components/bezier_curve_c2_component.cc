@@ -1,35 +1,22 @@
-#include "bezier_c2_curve_component.hh"
+#include "bezier_curve_c2_component.hh"
 
 #include "../events/events.hh"
-#include "selectible_component.hh"
 
-unsigned int BezierC2CurveComponent::s_new_id = 1;
+unsigned int BezierCurveC2Component::s_new_id = 1;
 
-BezierC2CurveComponent::BezierC2CurveComponent(const mge::EntityVector& points, mge::Entity& polygon)
-    : m_base(BezierCurveBase::BSpline), m_polygon(polygon) {
-  m_control_points = points;
+BezierCurveC2Component::BezierCurveC2Component(const mge::EntityVector& points, mge::Entity& polygon)
+    : BezierCurveComponent(points, polygon), m_base(BezierCurveBase::BSpline) {
   create_bernstein_points();
   update_bernstein_points();
 }
 
-BezierC2CurveComponent::~BezierC2CurveComponent() {
-  m_polygon.destroy();
+BezierCurveC2Component::~BezierCurveC2Component() {
   for (auto& point : m_bernstein_points) {
     point.get().destroy();
   }
 }
 
-void BezierC2CurveComponent::set_polygon_status(bool status) {
-  m_polygon.patch<mge::RenderableComponent<GeometryVertex>>([&status](auto& renderable) {
-    if (status) {
-      renderable.enable();
-    } else {
-      renderable.disable();
-    }
-  });
-}
-
-std::vector<GeometryVertex> BezierC2CurveComponent::generate_geometry() const {
+std::vector<GeometryVertex> BezierCurveC2Component::generate_geometry() const {
   std::vector<GeometryVertex> points;
   if (m_bernstein_points.empty()) {
     return points;
@@ -50,7 +37,7 @@ std::vector<GeometryVertex> BezierC2CurveComponent::generate_geometry() const {
   return points;
 }
 
-std::vector<GeometryVertex> BezierC2CurveComponent::generate_polygon_geometry() const {
+std::vector<GeometryVertex> BezierCurveC2Component::generate_polygon_geometry() const {
   std::vector<GeometryVertex> points(m_control_points.size());
   for (int i = 0; i < m_control_points.size(); ++i) {
     points[i] = {m_control_points[i].get().get_component<mge::TransformComponent>().get_position()};
@@ -58,7 +45,7 @@ std::vector<GeometryVertex> BezierC2CurveComponent::generate_polygon_geometry() 
   return points;
 }
 
-void BezierC2CurveComponent::add_point(mge::Entity& point) {
+void BezierCurveC2Component::add_point(mge::Entity& point) {
   if (m_base == BezierCurveBase::BSpline) {
     m_control_points.push_back(point);
     if (m_control_points.size() < 4) return;
@@ -79,7 +66,7 @@ void BezierC2CurveComponent::add_point(mge::Entity& point) {
   }
 }
 
-void BezierC2CurveComponent::remove_point(mge::Entity& point) {
+void BezierCurveC2Component::remove_point(mge::Entity& point) {
   if (m_base == BezierCurveBase::BSpline) {
     unsigned int idx = std::find(m_control_points.begin(), m_control_points.end(), point) - m_control_points.begin();
 
@@ -99,13 +86,9 @@ void BezierC2CurveComponent::remove_point(mge::Entity& point) {
   }
 }
 
-bool BezierC2CurveComponent::get_polygon_status() const {
-  return m_polygon.get_component<mge::RenderableComponent<GeometryVertex>>().is_enabled();
-}
+BezierCurveBase BezierCurveC2Component::get_base() const { return m_base; }
 
-BezierCurveBase BezierC2CurveComponent::get_base() const { return m_base; }
-
-void BezierC2CurveComponent::set_base(BezierCurveBase base) {
+void BezierCurveC2Component::set_base(BezierCurveBase base) {
   if (m_base == base) return;
   m_base = base;
   if (m_base == BezierCurveBase::Bernstein) {
@@ -121,7 +104,7 @@ void BezierC2CurveComponent::set_base(BezierCurveBase base) {
   }
 }
 
-void BezierC2CurveComponent::create_bernstein_points() {
+void BezierCurveC2Component::create_bernstein_points() {
   unsigned int segments = static_cast<int>(m_control_points.size()) - 3;
   if (segments > 0) {
     for (int i = 0; i < 3 * segments + 1; ++i) {
@@ -134,7 +117,7 @@ void BezierC2CurveComponent::create_bernstein_points() {
   }
 }
 
-void BezierC2CurveComponent::update_control_points(mge::Entity& bernstein_point) {
+void BezierCurveC2Component::update_control_points(mge::Entity& bernstein_point) {
   unsigned int idx =
       std::find(m_bernstein_points.begin(), m_bernstein_points.end(), bernstein_point) - m_bernstein_points.begin();
   if (idx == 0) {
@@ -193,7 +176,7 @@ void BezierC2CurveComponent::update_control_points(mge::Entity& bernstein_point)
   }
 }
 
-void BezierC2CurveComponent::update_bernstein_points() {
+void BezierCurveC2Component::update_bernstein_points() {
   if (m_bernstein_points.size() == 0) return;
 
   unsigned int segments = m_control_points.size() - 3;
