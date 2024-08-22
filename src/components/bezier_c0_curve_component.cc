@@ -1,15 +1,15 @@
-#include "bezier_component.hh"
+#include "bezier_c0_curve_component.hh"
 #include "selectible_component.hh"
 
-unsigned int BezierComponent::s_new_id = 1;
+unsigned int BezierC0CurveComponent::s_new_id = 1;
 
-BezierComponent::BezierComponent(const mge::EntityVector& control_points, mge::Entity& berenstein_polygon)
-    : m_control_points(control_points), m_berenstein_polygon(berenstein_polygon) {}
+BezierC0CurveComponent::BezierC0CurveComponent(const mge::EntityVector& points, mge::Entity& polygon)
+    : m_control_points(points), m_polygon(polygon) {}
 
-BezierComponent::~BezierComponent() { m_berenstein_polygon.destroy(); }
+BezierC0CurveComponent::~BezierC0CurveComponent() { m_polygon.destroy(); }
 
-void BezierComponent::set_berenstein_polygon_status(bool status) {
-  m_berenstein_polygon.patch<mge::RenderableComponent<GeometryVertex>>([&status](auto& renderable) {
+void BezierC0CurveComponent::set_polygon_status(bool status) {
+  m_polygon.patch<mge::RenderableComponent<GeometryVertex>>([&status](auto& renderable) {
     if (status) {
       renderable.enable();
     } else {
@@ -18,7 +18,7 @@ void BezierComponent::set_berenstein_polygon_status(bool status) {
   });
 }
 
-std::vector<GeometryVertex> BezierComponent::generate_geometry() const {
+std::vector<GeometryVertex> BezierC0CurveComponent::generate_geometry() const {
   std::vector<GeometryVertex> points;
   if (m_control_points.empty()) {
     return points;
@@ -39,7 +39,7 @@ std::vector<GeometryVertex> BezierComponent::generate_geometry() const {
   return points;
 }
 
-std::vector<GeometryVertex> BezierComponent::generate_polygon_geometry() const {
+std::vector<GeometryVertex> BezierC0CurveComponent::generate_polygon_geometry() const {
   std::vector<GeometryVertex> points(m_control_points.size());
   for (int i = 0; i < m_control_points.size(); ++i) {
     points[i] = {m_control_points[i].get().get_component<mge::TransformComponent>().get_position()};
@@ -47,13 +47,13 @@ std::vector<GeometryVertex> BezierComponent::generate_polygon_geometry() const {
   return points;
 }
 
-void BezierComponent::add_control_point(mge::Entity& control_point) { m_control_points.emplace_back(control_point); }
+void BezierC0CurveComponent::add_point(mge::Entity& control_point) { m_control_points.emplace_back(control_point); }
 
-void BezierComponent::remove_control_point(mge::Entity& control_point) {
+void BezierC0CurveComponent::remove_point(mge::Entity& control_point) {
   m_control_points.erase(std::remove(m_control_points.begin(), m_control_points.end(), control_point),
                          m_control_points.end());
 }
 
-bool BezierComponent::get_bezier_polygon_status() const {
-  return m_berenstein_polygon.get_component<mge::RenderableComponent<GeometryVertex>>().is_enabled();
+bool BezierC0CurveComponent::get_polygon_status() const {
+  return m_polygon.get_component<mge::RenderableComponent<GeometryVertex>>().is_enabled();
 }

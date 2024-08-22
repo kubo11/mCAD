@@ -1,6 +1,7 @@
 #include "cad_layer.hh"
 
-#include "../components/bezier_component.hh"
+#include "../components/bezier_c0_curve_component.hh"
+#include "../components/bezier_c2_curve_component.hh"
 #include "../components/color_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../components/point_component.hh"
@@ -113,11 +114,17 @@ void CadLayer::configure() {
   AddEventListener(TorusEvents::Add, CadLayer::on_add_torus, this);
   AddEventListener(TorusEvents::RadiusUpdated, CadLayer::on_torus_radius_updated, this);
   AddEventListener(TorusEvents::GridDensityUpdated, CadLayer::on_torus_grid_density_updated, this);
-  // Bezier events
-  AddEventListener(BezierEvents::Add, CadLayer::on_add_bezier, this);
-  AddEventListener(BezierEvents::AddControlPoint, CadLayer::on_add_control_point, this);
-  AddEventListener(BezierEvents::DeleteControlPoint, CadLayer::on_delete_control_point, this);
-  AddEventListener(BezierEvents::UpdateBerensteinPolygonState, CadLayer::on_update_berenstein_polygon_state, this);
+  // Bezier C0 Curve events
+  AddEventListener(BezierC0CurveEvents::Add, CadLayer::on_add_bezier_c0_curve, this);
+  AddEventListener(BezierC0CurveEvents::AddPoint, CadLayer::on_add_bezier_c0_curve_point, this);
+  AddEventListener(BezierC0CurveEvents::DeletePoint, CadLayer::on_delete_bezier_c0_curve_point, this);
+  AddEventListener(BezierC0CurveEvents::UpdatePolygonState, CadLayer::on_update_bezier_c0_polygon_state, this);
+  // Bezier C2 Curve events
+  AddEventListener(BezierC2CurveEvents::Add, CadLayer::on_add_bezier_c2_curve, this);
+  AddEventListener(BezierC2CurveEvents::AddPoint, CadLayer::on_add_bezier_c2_curve_point, this);
+  AddEventListener(BezierC2CurveEvents::DeletePoint, CadLayer::on_delete_bezier_c2_curve_point, this);
+  AddEventListener(BezierC2CurveEvents::UpdatePolygonState, CadLayer::on_update_bezier_c2_polygon_state, this);
+  AddEventListener(BezierC2CurveEvents::UpdateBase, CadLayer::on_update_bezier_c2_curve_base, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -191,7 +198,7 @@ void CadLayer::update_mass_center() {
 }
 
 void CadLayer::update_bezier(mge::Entity& entity) {
-  auto& bezier = entity.get_component<BezierComponent>();
+  auto& bezier = entity.get_component<BezierC0CurveComponent>();
   entity.patch<mge::RenderableComponent<GeometryVertex>>([&bezier](auto& renderable) {
     auto vertices = bezier.generate_geometry();
     auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
@@ -199,21 +206,20 @@ void CadLayer::update_bezier(mge::Entity& entity) {
     vertex_buffer.copy(vertices);
     vertex_buffer.unbind();
   });
-  entity.patch<BezierComponent>([](auto& bezier) {
-    bezier.template get_berenstein_polygon().template patch<mge::RenderableComponent<GeometryVertex>>(
-        [&bezier](auto& renderable) {
-          auto vertices = bezier.generate_polygon_geometry();
-          auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
-          vertex_buffer.bind();
-          vertex_buffer.copy(vertices);
-          vertex_buffer.unbind();
-        });
+  entity.patch<BezierC0CurveComponent>([](auto& bezier) {
+    bezier.template get_polygon().template patch<mge::RenderableComponent<GeometryVertex>>([&bezier](auto& renderable) {
+      auto vertices = bezier.generate_polygon_geometry();
+      auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+      vertex_buffer.bind();
+      vertex_buffer.copy(vertices);
+      vertex_buffer.unbind();
+    });
   });
 }
 
 void CadLayer::update_parent_bezier(mge::Entity& entity) {
   for (auto& parent : entity.get_parents()) {
-    if (parent.get().has_component<BezierComponent>()) {
+    if (parent.get().has_component<BezierC0CurveComponent>()) {
       update_bezier(parent.get());
     }
   }
@@ -308,6 +314,7 @@ bool CadLayer::on_add_point(AddPointEvent& event) {
   m_point_pipeline->update_instance_buffer();
   mge::AddedEntityEvent add_event(entity.get_id());
   SendEngineEvent(add_event);
+  event.point = entity;
   return true;
 }
 
@@ -392,7 +399,7 @@ bool CadLayer::on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event
   return true;
 }
 
-bool CadLayer::on_add_bezier(AddBezierEvent& event) {
+bool CadLayer::on_add_bezier_c0_curve(AddBezierC2CurveEvent& event) {
   auto& bezier_entity = m_scene.create_entity();
   auto& polygon_entity = m_scene.create_entity();
   for (auto id : event.control_points) {
@@ -404,11 +411,11 @@ bool CadLayer::on_add_bezier(AddBezierEvent& event) {
     }
     bezier_entity.add_child(entity);
   }
-  bezier_entity.template add_component<mge::TagComponent>(BezierComponent::get_new_name());
-  bezier_entity.template add_component<BezierComponent>(bezier_entity.get_children(), polygon_entity);
+  bezier_entity.template add_component<mge::TagComponent>(BezierC0CurveComponent::get_new_name());
+  bezier_entity.template add_component<BezierC0CurveComponent>(bezier_entity.get_children(), polygon_entity);
   bezier_entity.template add_component<SelectibleComponent>();
   bezier_entity.template add_component<ColorComponent>();
-  auto& bezier = bezier_entity.get_component<BezierComponent>();
+  auto& bezier = bezier_entity.get_component<BezierC0CurveComponent>();
   auto curve_vertices = bezier.generate_geometry();
   auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   curve_vertex_buffer->bind();
@@ -443,8 +450,8 @@ bool CadLayer::on_add_bezier(AddBezierEvent& event) {
   return true;
 }
 
-bool CadLayer::on_add_control_point(BezierAddControlPointEvent& event) {
-  auto& point = m_scene.get_entity(event.control_point_id);
+bool CadLayer::on_add_bezier_c0_curve_point(BezierC2CurveAddPointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
   auto& bezier = m_scene.get_entity(event.bezier_id);
   if (!point.has_component<PointComponent>()) return false;
   point.patch<SelectibleComponent>([&bezier](auto& selectible) {
@@ -454,27 +461,118 @@ bool CadLayer::on_add_control_point(BezierAddControlPointEvent& event) {
       [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
   update_point(point);
   bezier.add_child(point);
-  bezier.patch<BezierComponent>([&point](auto& component) { component.add_control_point(point); });
+  bezier.patch<BezierC0CurveComponent>([&point](auto& component) { component.add_point(point); });
   update_bezier(bezier);
   return true;
 }
 
-bool CadLayer::on_delete_control_point(BezierDeleteControlPointEvent& event) {
-  auto& point = m_scene.get_entity(event.control_point_id);
+bool CadLayer::on_delete_bezier_c0_curve_point(BezierC2CurveDeletePointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
   auto& bezier = m_scene.get_entity(event.bezier_id);
   if (!point.has_component<PointComponent>()) return false;
   point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
   point.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
   update_point(point);
   bezier.remove_child(point);
-  bezier.patch<BezierComponent>([&point](auto& component) { component.remove_control_point(point); });
+  bezier.patch<BezierC0CurveComponent>([&point](auto& component) { component.remove_point(point); });
   update_bezier(bezier);
   return true;
 }
 
-bool CadLayer::on_update_berenstein_polygon_state(BezierUpdateBerensteinPolygonStateEvent& event) {
-  m_scene.get_entity(event.id).patch<BezierComponent>(
-      [&event](auto& bezier) { bezier.set_berenstein_polygon_status(event.state); });
+bool CadLayer::on_update_bezier_c0_polygon_state(BezierC2CurveUpdatePolygonStateEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierC0CurveComponent>(
+      [&event](auto& bezier) { bezier.set_polygon_status(event.state); });
+  return true;
+}
+
+bool CadLayer::on_add_bezier_c2_curve(AddBezierC2CurveEvent& event) {
+  auto& bezier_entity = m_scene.create_entity();
+  auto& polygon_entity = m_scene.create_entity();
+  for (auto id : event.control_points) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<PointComponent>()) {
+      m_scene.destroy_entity(bezier_entity);
+      m_scene.destroy_entity(polygon_entity);
+      return false;
+    }
+    bezier_entity.add_child(entity);
+  }
+  bezier_entity.template add_component<mge::TagComponent>(BezierC2CurveComponent::get_new_name());
+  bezier_entity.template add_component<BezierC2CurveComponent>(bezier_entity.get_children(), polygon_entity);
+  bezier_entity.template add_component<SelectibleComponent>();
+  bezier_entity.template add_component<ColorComponent>();
+  auto& bezier = bezier_entity.get_component<BezierC2CurveComponent>();
+  auto curve_vertices = bezier.generate_geometry();
+  auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  curve_vertex_buffer->bind();
+  curve_vertex_buffer->copy(curve_vertices);
+  curve_vertex_buffer->unbind();
+  auto curve_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(std::move(curve_vertex_buffer),
+                                                                               GeometryVertex::get_vertex_attributes());
+  bezier_entity.template add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(curve_vertex_array), [&bezier_entity](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+      });
+  auto polygon_vertices = bezier.generate_polygon_geometry();
+  auto polygon_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  polygon_vertex_buffer->bind();
+  polygon_vertex_buffer->copy(polygon_vertices);
+  polygon_vertex_buffer->unbind();
+  auto polygon_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(polygon_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  polygon_entity
+      .template add_component<mge::RenderableComponent<GeometryVertex>>(
+          mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_polygon_pipeline}},
+          mge::RenderMode::WIREFRAME, std::move(polygon_vertex_array),
+          [&bezier_entity](auto& render_pipeline) {
+            render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+                "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+          })
+      .disable();
+  mge::AddedEntityEvent add_event(bezier_entity.get_id());
+  SendEngineEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_add_bezier_c2_curve_point(BezierC2CurveAddPointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
+  auto& bezier = m_scene.get_entity(event.bezier_id);
+  if (!point.has_component<PointComponent>()) return false;
+  point.patch<SelectibleComponent>([&bezier](auto& selectible) {
+    selectible.set_selection(bezier.get_component<SelectibleComponent>().is_selected());
+  });
+  point.patch<ColorComponent>(
+      [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
+  update_point(point);
+  bezier.add_child(point);
+  bezier.patch<BezierC0CurveComponent>([&point](auto& component) { component.add_point(point); });
+  update_bezier(bezier);
+  return true;
+}
+
+bool CadLayer::on_delete_bezier_c2_curve_point(BezierC2CurveDeletePointEvent& event) {
+  auto& point = m_scene.get_entity(event.point_id);
+  auto& bezier = m_scene.get_entity(event.bezier_id);
+  if (!point.has_component<PointComponent>()) return false;
+  point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
+  point.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
+  update_point(point);
+  bezier.remove_child(point);
+  bezier.patch<BezierC0CurveComponent>([&point](auto& component) { component.remove_point(point); });
+  update_bezier(bezier);
+  return true;
+}
+
+bool CadLayer::on_update_bezier_c2_polygon_state(BezierC2CurveUpdatePolygonStateEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierC2CurveComponent>(
+      [&event](auto& bezier) { bezier.set_polygon_status(event.state); });
+  return true;
+}
+
+bool CadLayer::on_update_bezier_c2_curve_base(BezierC2CurveUpdateBaseEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierC2CurveComponent>([&event](auto& bezier) { bezier.set_base(event.base); });
   return true;
 }
 

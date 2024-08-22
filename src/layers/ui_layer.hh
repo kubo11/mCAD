@@ -94,12 +94,15 @@ class UILayer : public mge::Layer {
   RotationAxis m_rotation_axis;
   SelectionManager m_selection_manager;
 
+  void define_create_bezier_curve_dialog();
+
   void show_tag_panel(const mge::Entity& entity);
   void show_transform_panel(const mge::Entity& entity);
   void show_limited_transform_panel(const mge::Entity& entity);
   void show_renderable_component(const mge::Entity& entity);
   void show_torus_panel(const mge::Entity& entity);
-  void show_bezier_panel(const mge::Entity& entity);
+  void show_bezier_c0_curve_panel(const mge::Entity& entity);
+  void show_bezier_c2_curve_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);

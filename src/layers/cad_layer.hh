@@ -56,11 +56,17 @@ class CadLayer : public mge::Layer {
   bool on_add_torus(AddTorusEvent& event);
   bool on_torus_radius_updated(TorusRadiusUpdatedEvent& event);
   bool on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event);
-  // Bezier events
-  bool on_add_bezier(AddBezierEvent& event);
-  bool on_add_control_point(BezierAddControlPointEvent& event);
-  bool on_delete_control_point(BezierDeleteControlPointEvent& event);
-  bool on_update_berenstein_polygon_state(BezierUpdateBerensteinPolygonStateEvent& event);
+  // Bezier C0 Curve events
+  bool on_add_bezier_c0_curve(AddBezierC2CurveEvent& event);
+  bool on_add_bezier_c0_curve_point(BezierC2CurveAddPointEvent& event);
+  bool on_delete_bezier_c0_curve_point(BezierC2CurveDeletePointEvent& event);
+  bool on_update_bezier_c0_polygon_state(BezierC2CurveUpdatePolygonStateEvent& event);
+  // Bezier C2 Curve events
+  bool on_add_bezier_c2_curve(AddBezierC2CurveEvent& event);
+  bool on_add_bezier_c2_curve_point(BezierC2CurveAddPointEvent& event);
+  bool on_delete_bezier_c2_curve_point(BezierC2CurveDeletePointEvent& event);
+  bool on_update_bezier_c2_polygon_state(BezierC2CurveUpdatePolygonStateEvent& event);
+  bool on_update_bezier_c2_curve_base(BezierC2CurveUpdateBaseEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events
