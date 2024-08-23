@@ -7,10 +7,10 @@
 #include "bezier_curve_component.hh"
 
 struct BezierCurveC2Component : public BezierCurveComponent {
-  BezierCurveC2Component(const mge::EntityVector& points, mge::Entity& polygon);
+  BezierCurveC2Component(const mge::EntityVector& points, mge::Entity& self, mge::Entity& polygon);
   virtual ~BezierCurveC2Component() override;
 
-  static std::string get_new_name() { return "BezierCurveC2" + std::to_string(s_new_id++); }
+  static std::string get_new_name() { return "BezierCurveC2 " + std::to_string(s_new_id++); }
 
   virtual void add_point(mge::Entity& point) override;
   virtual void remove_point(mge::Entity& control_point) override;
@@ -21,9 +21,12 @@ struct BezierCurveC2Component : public BezierCurveComponent {
   virtual std::vector<GeometryVertex> generate_geometry() const override;
   virtual std::vector<GeometryVertex> generate_polygon_geometry() const override;
 
+  void update_by_control_point(mge::Entity& entity);
+  void update_by_bernstein_point(mge::Entity& entity);
+
  private:
   static unsigned int s_new_id;
-  mge::EntityVector m_bernstein_points;
+  std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_bernstein_points;
   BezierCurveBase m_base;
 
   void create_bernstein_points();

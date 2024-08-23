@@ -6,7 +6,7 @@
 #include "bezier_curve_component.hh"
 
 struct BezierCurveC0Component : public BezierCurveComponent {
-  BezierCurveC0Component(const mge::EntityVector& points, mge::Entity& polygon);
+  BezierCurveC0Component(const mge::EntityVector& points, mge::Entity& self, mge::Entity& polygon);
   virtual ~BezierCurveC0Component() = default;
 
   static std::string get_new_name() { return "BezierCurveC0 " + std::to_string(s_new_id++); }

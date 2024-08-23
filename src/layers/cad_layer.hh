@@ -34,11 +34,9 @@ class CadLayer : public mge::Layer {
   mge::OptionalEntity get_closest_selectible_entity(glm::vec2 screen_space_position) const;
   glm::vec3 unproject_point(glm::vec2 screen_space_position) const;
 
-  void test_chuj(mge::Entity& entity);
-
   void update_mass_center();
   void update_bezier(mge::Entity& entity);
-  void update_point(mge::Entity& entity);
+  void update_point_instance_data(mge::Entity& entity);
   void update_parent_bezier(mge::Entity& entity);
 
   // Camera events
@@ -69,6 +67,7 @@ class CadLayer : public mge::Layer {
   bool on_delete_bezier_curve_c2_point(BezierCurveC2DeletePointEvent& event);
   bool on_update_bezier_curve_c2_polygon_state(BezierCurveC2UpdatePolygonStateEvent& event);
   bool on_update_bezier_curve_c2_base(BezierCurveC2UpdateBaseEvent& event);
+  bool on_create_bernstein_point(CreateBernsteinPointEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

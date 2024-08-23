@@ -8,7 +8,7 @@
 enum class BezierCurveBase { BSpline, Bernstein };
 
 struct BezierCurveComponent {
-  BezierCurveComponent(const mge::EntityVector& points, mge::Entity& polygon);
+  BezierCurveComponent(const mge::EntityVector& points, mge::Entity& self, mge::Entity& polygon);
   virtual ~BezierCurveComponent();
 
   bool get_polygon_status() const;
@@ -21,9 +21,13 @@ struct BezierCurveComponent {
   virtual std::vector<GeometryVertex> generate_geometry() const = 0;
   virtual std::vector<GeometryVertex> generate_polygon_geometry() const = 0;
 
+  void update_renderable(mge::Entity& entity);
+
  protected:
-  mge::EntityVector m_control_points;
+  std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_control_points;
   mge::Entity& m_polygon;
+  mge::Entity& m_self;
+  bool m_block_updates;
 };
 
 #endif  // MCAD_GEOMETRY_BEZIER_C0_CURVE_COMPONENT

@@ -5,7 +5,7 @@
 
 #include "../components/bezier_curve_component.hh"
 
-enum class BezierCurveC2Events { Add, UpdatePolygonState, UpdateBase, AddPoint, DeletePoint };
+enum class BezierCurveC2Events { Add, UpdatePolygonState, UpdateBase, AddPoint, DeletePoint, CreateBernsteinPoint };
 
 class AddBezierCurveC2Event : public mge::Event<BezierCurveC2Events> {
  public:
@@ -59,6 +59,14 @@ class BezierCurveC2DeletePointEvent : public mge::Event<BezierCurveC2Events> {
 
   mge::EntityId bezier_id;
   mge::EntityId point_id;
+};
+
+class CreateBernsteinPointEvent : public mge::Event<BezierCurveC2Events> {
+ public:
+  CreateBernsteinPointEvent()
+      : mge::Event<BezierCurveC2Events>(BezierCurveC2Events::CreateBernsteinPoint, "CreateBernsteinPointEvent") {}
+
+  mge::OptionalEntity bernstein_point;
 };
 
 #endif  // MCAD_EVENTS_BEZIER_CURVE_C2_EVENT

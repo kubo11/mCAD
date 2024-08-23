@@ -7,7 +7,7 @@ enum class BezierCurveC0Events { Add, UpdatePolygonState, AddPoint, DeletePoint 
 
 class AddBezierCurveC0Event : public mge::Event<BezierCurveC0Events> {
  public:
-  AddBezierCurveC0Event(std::vector<mge::EntityId> points)
+  AddBezierCurveC0Event(std::vector<mge::EntityId> control_points)
       : mge::Event<BezierCurveC0Events>(BezierCurveC0Events::Add, "AddBezierCurveC0Event"),
         control_points{std::move(control_points)} {}
 
