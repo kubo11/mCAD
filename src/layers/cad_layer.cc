@@ -532,7 +532,6 @@ bool CadLayer::on_add_bezier_curve_c0_point(BezierCurveC0AddPointEvent& event) {
   });
   point.patch<ColorComponent>(
       [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
-  // bezier.add_child(point);
   bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.add_point(point); });
   return true;
 }
@@ -542,7 +541,8 @@ bool CadLayer::on_delete_bezier_curve_c0_point(BezierCurveC0DeletePointEvent& ev
   auto& bezier = m_scene.get_entity(event.bezier_id);
   if (!point.has_component<PointComponent>()) return false;
   point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
-  point.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
+  auto color = point.get_component<SelectibleComponent>().get_regular_color();
+  point.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
   bezier.remove_child(point);
   bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.remove_point(point); });
   return true;
@@ -619,7 +619,6 @@ bool CadLayer::on_add_bezier_curve_c2_point(BezierCurveC2AddPointEvent& event) {
   });
   point.patch<ColorComponent>(
       [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
-  // bezier.add_child(point);
   bezier.patch<BezierCurveC2Component>([&point](auto& component) { component.add_point(point); });
   return true;
 }
@@ -629,7 +628,8 @@ bool CadLayer::on_delete_bezier_curve_c2_point(BezierCurveC2DeletePointEvent& ev
   auto& bezier = m_scene.get_entity(event.bezier_id);
   if (!point.has_component<PointComponent>()) return false;
   point.patch<SelectibleComponent>([&bezier](auto& selectible) { selectible.set_selection(false); });
-  point.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
+  auto color = point.get_component<SelectibleComponent>().get_regular_color();
+  point.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
   bezier.remove_child(point);
   bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.remove_point(point); });
   return true;
@@ -651,8 +651,8 @@ bool CadLayer::on_create_bernstein_point(CreateBernsteinPointEvent& event) {
   entity.template add_component<PointComponent>();
   entity.template add_component<mge::TransformComponent>();
   auto point_position = entity.get_component<mge::TransformComponent>().get_position();
-  entity.template add_component<SelectibleComponent>();
-  entity.template add_component<ColorComponent>();
+  entity.template add_component<SelectibleComponent>(glm::vec3{0.0f, 1.0f, 1.0f}, glm::vec3{0.0f, 0.0f, 1.0f});
+  entity.template add_component<ColorComponent>(entity.get_component<SelectibleComponent>().get_regular_color());
   auto position = entity.get_component<mge::TransformComponent>().get_position();
   auto color = entity.get_component<ColorComponent>().get_color();
   entity.template add_component<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
@@ -800,13 +800,13 @@ bool CadLayer::on_selection_updated(SelectionUpdateEvent& event) {
   if (entity.get_component<SelectibleComponent>().is_selected() == event.selection) return false;
 
   entity.patch<SelectibleComponent>([&event](auto& selectible) { selectible.set_selection(event.selection); });
-  entity.patch<ColorComponent>([&event](auto& color) {
-    if (event.selection) {
-      color.set_color({0.8f, 0.3f, 0.0f});
-    } else {
-      color.set_color({0.0f, 0.0f, 0.0f});
-    }
-  });
+  glm::vec3 color;
+  if (event.selection) {
+    color = entity.get_component<SelectibleComponent>().get_selected_color();
+  } else {
+    color = entity.get_component<SelectibleComponent>().get_regular_color();
+  }
+  entity.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
 
   if (entity.has_component<mge::TransformComponent>()) {
     if (event.selection) {
@@ -838,7 +838,8 @@ bool CadLayer::on_unselect_all_entities(UnselectAllEntitiesEvent& event) {
     entity.patch<SelectibleComponent>([](auto& selectible) { selectible.set_selection(false); });
   });
   m_scene.foreach<>(entt::get<SelectibleComponent, ColorComponent>, entt::exclude<>, [&](mge::Entity& entity) {
-    entity.patch<ColorComponent>([](auto& color) { color.set_color({0.0f, 0.0f, 0.0f}); });
+    auto color = entity.get_component<SelectibleComponent>().get_regular_color();
+    entity.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
   });
   m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
       [](auto& renderable) { renderable.disable(); });

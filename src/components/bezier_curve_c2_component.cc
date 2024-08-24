@@ -46,10 +46,19 @@ std::vector<GeometryVertex> BezierCurveC2Component::generate_geometry() const {
 }
 
 std::vector<GeometryVertex> BezierCurveC2Component::generate_polygon_geometry() const {
-  std::vector<GeometryVertex> points(m_control_points.size());
-  for (int i = 0; i < m_control_points.size(); ++i) {
-    points[i] = {m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position()};
+  std::vector<GeometryVertex> points;
+  if (m_base == BezierCurveBase::BSpline) {
+    points.resize(m_control_points.size());
+    for (int i = 0; i < m_control_points.size(); ++i) {
+      points[i] = {m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position()};
+    }
+  } else {
+    points.resize(m_bernstein_points.size());
+    for (int i = 0; i < m_bernstein_points.size(); ++i) {
+      points[i] = {m_bernstein_points[i].second.get().get_component<mge::TransformComponent>().get_position()};
+    }
   }
+
   return points;
 }
 
