@@ -19,7 +19,9 @@ class SelectionManager {
   SelectionManager();
 
   void select(mge::EntityId id, bool is_parent);
+  void select_virtual(mge::EntityId id);
   void unselect(mge::EntityId id);
+  void unselect_virtual(mge::EntityId id);
   void unselect_all();
 
   mge::OptionalEntity get_displayed_entity() const;
@@ -33,13 +35,16 @@ class SelectionManager {
   std::vector<mge::EntityId> get_selected_ids();
 
   bool add_entity(mge::EntityId id, const std::string& tag);
+  bool add_virtual_entity(mge::EntityId id);
   bool remove_entity(mge::EntityId id);
+  bool remove_virtual_entity(mge::EntityId id);
   bool rename_entity(mge::EntityId id, const std::string& tag);
 
   void validate_selected();
 
  private:
   std::map<mge::EntityId, EntityMapNode> m_entities;
+  std::map<mge::EntityId, bool> m_virtual_entities;
   std::vector<mge::EntityId> m_selected_entities;
   mge::OptionalEntity m_displayed_entity;
   unsigned int m_selected_count;

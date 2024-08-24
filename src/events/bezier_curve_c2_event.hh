@@ -28,17 +28,6 @@ class BezierCurveC2UpdatePolygonStateEvent : public mge::Event<BezierCurveC2Even
   bool state;
 };
 
-class BezierCurveC2UpdateBaseEvent : public mge::Event<BezierCurveC2Events> {
- public:
-  BezierCurveC2UpdateBaseEvent(mge::EntityId id, BezierCurveBase base)
-      : mge::Event<BezierCurveC2Events>(BezierCurveC2Events::UpdateBase, "BezierCurveC2UpdateBaseEvent"),
-        id(id),
-        base(base) {}
-
-  mge::EntityId id;
-  BezierCurveBase base;
-};
-
 class BezierCurveC2AddPointEvent : public mge::Event<BezierCurveC2Events> {
  public:
   BezierCurveC2AddPointEvent(mge::EntityId bezier_id, mge::EntityId point_id)
@@ -67,6 +56,17 @@ class CreateBernsteinPointEvent : public mge::Event<BezierCurveC2Events> {
       : mge::Event<BezierCurveC2Events>(BezierCurveC2Events::CreateBernsteinPoint, "CreateBernsteinPointEvent") {}
 
   mge::OptionalEntity bernstein_point;
+};
+
+class BezierCurveC2UpdateBaseEvent : public mge::Event<BezierCurveC2Events> {
+ public:
+  BezierCurveC2UpdateBaseEvent(mge::EntityId id, BezierCurveBase base)
+      : mge::Event<BezierCurveC2Events>(BezierCurveC2Events::UpdateBase, "BezierCurveC2UpdateBaseEvent"),
+        id(id),
+        base(base) {}
+
+  mge::EntityId id;
+  BezierCurveBase base;
 };
 
 #endif  // MCAD_EVENTS_BEZIER_CURVE_C2_EVENT

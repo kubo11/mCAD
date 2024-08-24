@@ -15,19 +15,17 @@ struct BezierCurveC2Component : public BezierCurveComponent {
   virtual void add_point(mge::Entity& point) override;
   virtual void remove_point(mge::Entity& control_point) override;
 
-  BezierCurveBase get_base() const;
-  void set_base(BezierCurveBase base);
-
   virtual std::vector<GeometryVertex> generate_geometry() const override;
   virtual std::vector<GeometryVertex> generate_polygon_geometry() const override;
 
   void update_by_control_point(mge::Entity& entity);
   void update_by_bernstein_point(mge::Entity& entity);
 
+  virtual void set_base(BezierCurveBase base) override;
+
  private:
   static unsigned int s_new_id;
   std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_bernstein_points;
-  BezierCurveBase m_base;
 
   void create_bernstein_points();
   void update_control_points(mge::Entity& bernstein_point);

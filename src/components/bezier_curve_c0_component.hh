@@ -14,6 +14,8 @@ struct BezierCurveC0Component : public BezierCurveComponent {
   virtual std::vector<GeometryVertex> generate_geometry() const override;
   virtual std::vector<GeometryVertex> generate_polygon_geometry() const override;
 
+  virtual void set_base(BezierCurveBase base) override;
+
  private:
   static unsigned int s_new_id;
 };

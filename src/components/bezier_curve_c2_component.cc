@@ -1,11 +1,16 @@
 #include "bezier_curve_c2_component.hh"
 
 #include "../events/events.hh"
+#include "selectible_component.hh"
 
 unsigned int BezierCurveC2Component::s_new_id = 1;
 
 BezierCurveC2Component::BezierCurveC2Component(const mge::EntityVector& points, mge::Entity& self, mge::Entity& polygon)
-    : BezierCurveComponent(points, self, polygon), m_base(BezierCurveBase::BSpline) {
+    : BezierCurveComponent(BezierCurveBase::Bernstein, points, self, polygon) {
+  for (auto& data : m_control_points) {
+    data.first = data.second.get().register_on_update<mge::TransformComponent>(
+        &BezierCurveC2Component::update_by_control_point, this);
+  }
   create_bernstein_points();
   m_block_updates = true;
   update_bernstein_points();
@@ -14,7 +19,8 @@ BezierCurveC2Component::BezierCurveC2Component(const mge::EntityVector& points, 
 
 BezierCurveC2Component::~BezierCurveC2Component() {
   for (auto& point : m_bernstein_points) {
-    point.second.get().destroy();
+    mge::DeleteEntityEvent event(point.second.get().get_id());
+    SendEngineEvent(event);
   }
 }
 
@@ -48,61 +54,48 @@ std::vector<GeometryVertex> BezierCurveC2Component::generate_polygon_geometry() 
 }
 
 void BezierCurveC2Component::add_point(mge::Entity& point) {
-  if (m_base == BezierCurveBase::BSpline) {
-    BezierCurveComponent::add_point(point);
-    if (m_control_points.size() < 4) return;
-    unsigned int new_point_count = 3;
-    if (m_control_points.size() - new_point_count < 4) new_point_count++;
+  BezierCurveComponent::add_point(point);
+  if (m_control_points.size() < 4) return;
+  unsigned int new_point_count = 3;
+  if (m_control_points.size() + new_point_count < 4) new_point_count++;
 
-    for (int i = 0; i < new_point_count; ++i) {
-      CreateBernsteinPointEvent event;
-      SendEvent(event);
-      auto& point = event.bernstein_point.value().get();
-      m_bernstein_points.push_back(
-          {point.register_on_update<mge::TransformComponent>(&BezierCurveC2Component::update_by_bernstein_point, this),
-           point});
+  for (int i = 0; i < new_point_count; ++i) {
+    CreateBernsteinPointEvent event;
+    SendEvent(event);
+    auto& point = event.bernstein_point.value().get();
+    if (m_base == BezierCurveBase::BSpline) {
+      point.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+          [](auto& renderable) { renderable.disable(); });
+      point.patch<SelectibleComponent>([](auto& selectible) { selectible.set_status(false); });
     }
-
-    update_bernstein_points();
-  } else {
-    // TODO
+    m_bernstein_points.push_back(
+        {point.register_on_update<mge::TransformComponent>(&BezierCurveC2Component::update_by_bernstein_point, this),
+         point});
+    // m_self.add_child(point);
   }
+
+  m_block_updates = true;
+  update_bernstein_points();
+  m_block_updates = false;
 }
 
 void BezierCurveC2Component::remove_point(mge::Entity& point) {
-  if (m_base == BezierCurveBase::BSpline) {
-    unsigned int to_delete = 0;
-    if (m_control_points.size() == 4) {
-      to_delete = 4;
-    } else if (m_control_points.size() > 4) {
-      to_delete = 3;
-    }
-    for (int i = to_delete - 1; i >= 0; --i) {
-      m_bernstein_points.erase(m_bernstein_points.begin() + i);
-    }
-
-    BezierCurveComponent::remove_point(point);
-  } else {
-    // TODO
+  unsigned int to_delete = 0;
+  if (m_control_points.size() == 4) {
+    to_delete = 4;
+  } else if (m_control_points.size() > 4) {
+    to_delete = 3;
   }
-}
-
-BezierCurveBase BezierCurveC2Component::get_base() const { return m_base; }
-
-void BezierCurveC2Component::set_base(BezierCurveBase base) {
-  if (m_base == base) return;
-  m_base = base;
-  if (m_base == BezierCurveBase::Bernstein) {
-    for (auto& point : m_bernstein_points) {
-      point.second.get().patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
-          [](auto& renderable) { renderable.enable(); });
-    }
-  } else {
-    for (auto& point : m_bernstein_points) {
-      point.second.get().patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
-          [](auto& renderable) { renderable.disable(); });
-    }
+  for (int i = to_delete - 1; i >= 0; --i) {
+    m_self.remove_child((m_bernstein_points.begin() + i)->second);
+    mge::DeleteEntityEvent event((m_bernstein_points.begin() + i)->second.get().get_id());
+    SendEngineEvent(event);
+    mge::DeletedEntityEvent event2((m_bernstein_points.begin() + i)->second.get().get_id());
+    SendEngineEvent(event2);
+    m_bernstein_points.erase(m_bernstein_points.begin() + i);
   }
+
+  BezierCurveComponent::remove_point(point);
 }
 
 void BezierCurveC2Component::create_bernstein_points() {
@@ -112,6 +105,12 @@ void BezierCurveC2Component::create_bernstein_points() {
       CreateBernsteinPointEvent event;
       SendEvent(event);
       auto& point = event.bernstein_point.value().get();
+      if (m_base == BezierCurveBase::BSpline) {
+        point.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+            [](auto& renderable) { renderable.disable(); });
+        point.patch<SelectibleComponent>([](auto& selectible) { selectible.set_status(false); });
+      }
+
       m_bernstein_points.push_back(
           {point.register_on_update<mge::TransformComponent>(&BezierCurveC2Component::update_by_bernstein_point, this),
            point});
@@ -241,8 +240,22 @@ void BezierCurveC2Component::update_by_control_point(mge::Entity& entity) {
 
 void BezierCurveC2Component::update_by_bernstein_point(mge::Entity& entity) {
   if (m_block_updates) return;
-  m_block_updates = true;
   update_control_points(entity);
-  m_block_updates = false;
   BezierCurveComponent::update_renderable(entity);
+}
+
+void BezierCurveC2Component::set_base(BezierCurveBase base) {
+  if (m_base == base) return;
+  for (auto& data : m_bernstein_points) {
+    auto& point = data.second.get();
+    point.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>([&base](auto& renderable) {
+      if (base == BezierCurveBase::Bernstein)
+        renderable.enable();
+      else
+        renderable.disable();
+    });
+    point.patch<SelectibleComponent>(
+        [base](auto& selectible) { selectible.set_status(base == BezierCurveBase::Bernstein); });
+  }
+  BezierCurveComponent::set_base(base);
 }

@@ -4,9 +4,8 @@
 #include "mge.hh"
 
 struct SelectibleComponent {
-  SelectibleComponent() : m_selected(false) {}
-  SelectibleComponent(SelectibleComponent&& other)
-      : m_selected(std::move(other.m_selected)) {}
+  SelectibleComponent() : m_selected(false), m_enabled(true) {}
+  SelectibleComponent(SelectibleComponent&& other) : m_selected(std::move(other.m_selected)) {}
   inline SelectibleComponent& operator=(SelectibleComponent&& other) {
     m_selected = std::move(other.m_selected);
     return *this;
@@ -15,24 +14,15 @@ struct SelectibleComponent {
   bool is_selected() const { return m_selected; }
   void set_selection(bool selected) { m_selected = selected; }
 
-  template <class T>
-  void on_update(mge::Entity& entity) {
-    entity.patch<mge::RenderableComponent<T>>([this](auto& renderable) {
-      if (m_selected) {
-        renderable.set_color(s_selected_color);
-      } else {
-        renderable.set_color(s_regular_color);
-      }
-    });
-
-    // TODO: announce selection
-  }
+  bool is_enabled() const { return m_enabled; }
+  void set_status(bool status) { m_enabled = status; }
 
  private:
   static const glm::vec3 s_selected_color;
   static const glm::vec3 s_regular_color;
 
   bool m_selected;
+  bool m_enabled;
 };
 
 #endif  // MCAD_GEOMETRY_SELECTIBLE_COMPONENT_HH

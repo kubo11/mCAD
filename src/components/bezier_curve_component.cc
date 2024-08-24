@@ -1,16 +1,18 @@
 #include "bezier_curve_component.hh"
 #include "selectible_component.hh"
 
-BezierCurveComponent::BezierCurveComponent(const mge::EntityVector& points, mge::Entity& self, mge::Entity& polygon)
-    : m_self(self), m_polygon(polygon) {
+BezierCurveComponent::BezierCurveComponent(BezierCurveBase base, const mge::EntityVector& points, mge::Entity& self,
+                                           mge::Entity& polygon)
+    : m_base(base), m_self(self), m_polygon(polygon) {
   for (auto& point : points) {
-    m_control_points.push_back(
-        {point.get().register_on_update<mge::TransformComponent>(&BezierCurveComponent::update_renderable, this),
-         point});
+    m_control_points.push_back({0, point});
   }
 }
 
-BezierCurveComponent::~BezierCurveComponent() { m_polygon.destroy(); }
+BezierCurveComponent::~BezierCurveComponent() {
+  mge::DeleteEntityEvent event(m_polygon.get_id());
+  SendEngineEvent(event);
+}
 
 void BezierCurveComponent::set_polygon_status(bool status) {
   m_polygon.patch<mge::RenderableComponent<GeometryVertex>>([&status](auto& renderable) {
@@ -29,6 +31,7 @@ bool BezierCurveComponent::get_polygon_status() const {
 void BezierCurveComponent::add_point(mge::Entity& point) {
   m_control_points.push_back(
       {point.register_on_update<mge::TransformComponent>(&BezierCurveComponent::update_renderable, this), point});
+  m_self.add_child(point);
 }
 
 void BezierCurveComponent::remove_point(mge::Entity& point) {
@@ -42,6 +45,7 @@ void BezierCurveComponent::remove_point(mge::Entity& point) {
         return false;
       });
   point.unregister_on_update<mge::TransformComponent>(handle);
+  m_self.remove_child(point);
 }
 
 void BezierCurveComponent::update_renderable(mge::Entity& entity) {
@@ -61,3 +65,7 @@ void BezierCurveComponent::update_renderable(mge::Entity& entity) {
     vertex_buffer.unbind();
   });
 }
+
+void BezierCurveComponent::set_base(BezierCurveBase base) { m_base = base; }
+
+BezierCurveBase BezierCurveComponent::get_base() const { return m_base; }

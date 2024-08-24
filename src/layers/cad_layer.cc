@@ -62,9 +62,105 @@ void CadLayer::configure() {
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
-  auto point_vertices =
-      std::vector<GeometryVertex>{{{-1.0f, 1.0f, 0.0f}}, {{-1.0f, -1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},
-                                  {{-1.0f, 1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},  {{1.0f, 1.0f, 0.0f}}};
+  // auto point_vertices =
+  //     std::vector<GeometryVertex>{{{-1.0f, 1.0f, 0.0f}}, {{-1.0f, -1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},
+  //                                 {{-1.0f, 1.0f, 0.0f}}, {{1.0f, -1.0f, 0.0f}},  {{1.0f, 1.0f, 0.0f}}};
+  auto point_vertices = std::vector<GeometryVertex>{{{1.0f, 0.0f, 0.0f}},
+                                                    {{0.9807852804032304f, 0.19509032201612825f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9807852804032304f, 0.19509032201612825f, 0.0f}},
+                                                    {{0.9238795325112867f, 0.3826834323650898f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9238795325112867f, 0.3826834323650898f, 0.0f}},
+                                                    {{0.8314696123025452f, 0.5555702330196022f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.8314696123025452f, 0.5555702330196022f, 0.0f}},
+                                                    {{0.7071067811865476f, 0.7071067811865475f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.7071067811865476f, 0.7071067811865475f, 0.0f}},
+                                                    {{0.5555702330196023f, 0.8314696123025452f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.5555702330196023f, 0.8314696123025452f, 0.0f}},
+                                                    {{0.38268343236508984f, 0.9238795325112867f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.38268343236508984f, 0.9238795325112867f, 0.0f}},
+                                                    {{0.19509032201612833f, 0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.19509032201612833f, 0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 1.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, 1.0f, 0.0f}},
+                                                    {{-0.1950903220161282f, 0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.1950903220161282f, 0.9807852804032304f, 0.0f}},
+                                                    {{-0.3826834323650897f, 0.9238795325112867f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.3826834323650897f, 0.9238795325112867f, 0.0f}},
+                                                    {{-0.555570233019602f, 0.8314696123025455f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.555570233019602f, 0.8314696123025455f, 0.0f}},
+                                                    {{-0.7071067811865475f, 0.7071067811865476f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.7071067811865475f, 0.7071067811865476f, 0.0f}},
+                                                    {{-0.8314696123025453f, 0.5555702330196022f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.8314696123025453f, 0.5555702330196022f, 0.0f}},
+                                                    {{-0.9238795325112867f, 0.3826834323650899f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9238795325112867f, 0.3826834323650899f, 0.0f}},
+                                                    {{-0.9807852804032304f, 0.1950903220161286f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9807852804032304f, 0.1950903220161286f, 0.0f}},
+                                                    {{-1.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-1.0f, 0.0f, 0.0f}},
+                                                    {{-0.9807852804032304f, -0.19509032201612836f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9807852804032304f, -0.19509032201612836f, 0.0f}},
+                                                    {{-0.9238795325112868f, -0.38268343236508967f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.9238795325112868f, -0.38268343236508967f, 0.0f}},
+                                                    {{-0.8314696123025455f, -0.555570233019602f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.8314696123025455f, -0.555570233019602f, 0.0f}},
+                                                    {{-0.7071067811865477f, -0.7071067811865475f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.7071067811865477f, -0.7071067811865475f, 0.0f}},
+                                                    {{-0.5555702330196022f, -0.8314696123025452f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.5555702330196022f, -0.8314696123025452f, 0.0f}},
+                                                    {{-0.38268343236509034f, -0.9238795325112865f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.38268343236509034f, -0.9238795325112865f, 0.0f}},
+                                                    {{-0.19509032201612866f, -0.9807852804032303f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{-0.19509032201612866f, -0.9807852804032303f, 0.0f}},
+                                                    {{0.0f, -1.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, -1.0f, 0.0f}},
+                                                    {{0.1950903220161283f, -0.9807852804032304f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.1950903220161283f, -0.9807852804032304f, 0.0f}},
+                                                    {{0.38268343236509f, -0.9238795325112866f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.38268343236509f, -0.9238795325112866f, 0.0f}},
+                                                    {{0.5555702330196018f, -0.8314696123025455f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.5555702330196018f, -0.8314696123025455f, 0.0f}},
+                                                    {{0.7071067811865474f, -0.7071067811865477f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.7071067811865474f, -0.7071067811865477f, 0.0f}},
+                                                    {{0.8314696123025452f, -0.5555702330196022f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.8314696123025452f, -0.5555702330196022f, 0.0f}},
+                                                    {{0.9238795325112865f, -0.3826834323650904f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9238795325112865f, -0.3826834323650904f, 0.0f}},
+                                                    {{0.9807852804032303f, -0.19509032201612872f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}},
+                                                    {{0.9807852804032303f, -0.19509032201612872f, 0.0f}},
+                                                    {{1.0f, 0.0f, 0.0f}},
+                                                    {{0.0f, 0.0f, 0.0f}}};
   auto point_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   point_vertex_buffer->bind();
   point_vertex_buffer->copy(point_vertices);
@@ -176,6 +272,7 @@ mge::OptionalEntity CadLayer::get_closest_selectible_entity(glm::vec2 screen_spa
   auto& camera = m_scene.get_current_camera();
   auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
   m_scene.foreach<>(entt::get<mge::TransformComponent, SelectibleComponent>, entt::exclude<>, [&](auto& entity) {
+    if (!entity.template get_component<SelectibleComponent>().is_enabled()) return;
     auto& transform = entity.template get_component<mge::TransformComponent>();
     auto entity_position = proj_view * glm::vec4(transform.get_position(), 1.0f);
     auto corrected_entity_position = glm::vec3(entity_position) / entity_position.w;
@@ -224,10 +321,6 @@ bool CadLayer::on_camera_position_changed(mge::CameraPositionChangedEvent& event
 
 bool CadLayer::on_camera_zoom(mge::CameraZoomEvent& event) {
   m_scene.get_current_camera().zoom(event.zoom, event.get_dt());
-  if (m_scene.get_current_camera().get_fov() > 1.0f && m_scene.get_current_camera().get_fov() < 45.0f) {
-    m_cursor.patch<mge::TransformComponent>([&event](auto& transform) { transform.scale(event.zoom); });
-    PointComponent::s_scale *= event.zoom;
-  }
   return true;
 }
 
@@ -243,11 +336,6 @@ bool CadLayer::on_delete_entity_by_id(mge::DeleteEntityEvent& event) {
     return false;
   }
 
-  // entity.run_and_propagate([&event](auto& entity) {
-  //   auto selection_event = SelectionUpdateEvent{event.id, false};
-  //   SendEvent(selection_event);
-  // });
-  // m_scene.destroy_entity(event.id);
   m_to_be_destroyed.push_back(event.id);
 
   return true;
@@ -444,7 +532,7 @@ bool CadLayer::on_add_bezier_curve_c0_point(BezierCurveC0AddPointEvent& event) {
   });
   point.patch<ColorComponent>(
       [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
-  bezier.add_child(point);
+  // bezier.add_child(point);
   bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.add_point(point); });
   return true;
 }
@@ -531,8 +619,8 @@ bool CadLayer::on_add_bezier_curve_c2_point(BezierCurveC2AddPointEvent& event) {
   });
   point.patch<ColorComponent>(
       [&bezier](auto& color) { color.set_color(bezier.get_component<ColorComponent>().get_color()); });
-  bezier.add_child(point);
-  bezier.patch<BezierCurveC0Component>([&point](auto& component) { component.add_point(point); });
+  // bezier.add_child(point);
+  bezier.patch<BezierCurveC2Component>([&point](auto& component) { component.add_point(point); });
   return true;
 }
 
@@ -575,6 +663,8 @@ bool CadLayer::on_create_bernstein_point(CreateBernsteinPointEvent& event) {
   entity.register_on_update<mge::TransformComponent>(&CadLayer::update_point_instance_data, this);
   entity.register_on_update<ColorComponent>(&CadLayer::update_point_instance_data, this);
   event.bernstein_point = entity;
+  mge::AddedEntityEvent add_event(entity.get_id());
+  SendEngineEvent(add_event);
   return true;
 }
 

@@ -3,7 +3,12 @@
 unsigned int BezierCurveC0Component::s_new_id = 1;
 
 BezierCurveC0Component::BezierCurveC0Component(const mge::EntityVector& points, mge::Entity& self, mge::Entity& polygon)
-    : BezierCurveComponent(points, self, polygon) {}
+    : BezierCurveComponent(BezierCurveBase::BSpline, points, self, polygon) {
+  for (auto& data : m_control_points) {
+    data.first = data.second.get().register_on_update<mge::TransformComponent, BezierCurveC0Component>(
+        &BezierCurveC0Component::update_renderable, this);
+  }
+}
 
 std::vector<GeometryVertex> BezierCurveC0Component::generate_geometry() const {
   std::vector<GeometryVertex> points;
@@ -33,3 +38,5 @@ std::vector<GeometryVertex> BezierCurveC0Component::generate_polygon_geometry() 
   }
   return points;
 }
+
+void BezierCurveC0Component::set_base(BezierCurveBase base) {}
