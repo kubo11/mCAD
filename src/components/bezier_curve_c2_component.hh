@@ -23,9 +23,13 @@ struct BezierCurveC2Component : public BezierCurveComponent {
 
   virtual void set_base(BezierCurveBase base) override;
 
+  void update_bernstein();
+
  private:
   static unsigned int s_new_id;
   std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_bernstein_points;
+  mge::EntityVector m_bernstein_to_update;
+  bool m_internal_updates;
 
   void create_bernstein_points();
   void update_control_points(mge::Entity& bernstein_point);

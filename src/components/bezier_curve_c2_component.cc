@@ -249,9 +249,14 @@ void BezierCurveC2Component::update_by_control_point(mge::Entity& entity) {
 }
 
 void BezierCurveC2Component::update_by_bernstein_point(mge::Entity& entity) {
-  if (m_block_updates) return;
-  update_control_points(entity);
-  BezierCurveComponent::update_renderable(entity);
+  if (m_internal_updates) {
+    if (m_block_updates) return;
+    update_control_points(entity);
+    // BezierCurveComponent::update_renderable(entity);
+  } else {
+    m_block_updates = true;
+    m_bernstein_to_update.push_back(entity);
+  }
 }
 
 void BezierCurveC2Component::set_base(BezierCurveBase base) {
@@ -296,4 +301,16 @@ void BezierCurveC2Component::show_point(mge::Entity& point) {
 void BezierCurveC2Component::hide_point(mge::Entity& point) {
   point.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
       [](auto& renderable) { renderable.disable(); });
+}
+
+void BezierCurveC2Component::update_bernstein() {
+  if (!m_block_updates) return;
+  m_block_updates = false;
+  m_internal_updates = true;
+  for (auto& point : m_bernstein_to_update) {
+    update_control_points(point.get());
+  }
+  BezierCurveComponent::update_renderable(m_bernstein_to_update.front());
+  m_bernstein_to_update.clear();
+  m_internal_updates = false;
 }

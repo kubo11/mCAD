@@ -251,6 +251,10 @@ void CadLayer::update() {
   }
   m_to_be_destroyed.clear();
 
+  m_scene.foreach<>(entt::get<BezierCurveC2Component>, entt::exclude<>, [&](mge::Entity& entity) {
+    entity.template patch<BezierCurveC2Component>([](auto& bezier) { bezier.update_bernstein(); });
+  });
+
   m_geometry_wireframe_pipeline->run();
   m_geometry_solid_pipeline->run();
   m_bezier_pipeline->run();
