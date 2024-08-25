@@ -30,6 +30,10 @@ struct BezierCurveC2Component : public BezierCurveComponent {
   void create_bernstein_points();
   void update_control_points(mge::Entity& bernstein_point);
   void update_bernstein_points();
+  void enable_point(mge::Entity& point);
+  void disable_point(mge::Entity& point);
+  void show_point(mge::Entity& point);
+  void hide_point(mge::Entity& point);
 };
 
 #endif  // MCAD_GEOMETRY_BEZIER_CURVE_C2_COMPONENT

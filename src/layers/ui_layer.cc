@@ -75,7 +75,7 @@ SelectionManager::SelectionManager() : m_displayed_entity(std::nullopt), m_selec
 
 void SelectionManager::select(mge::EntityId id, bool is_parent) {
   if (m_virtual_entities.contains(id)) {
-    select_virtual(id);
+    select_virtual(id, is_parent);
     return;
   }
   if (m_entities.at(id).is_selected) return;
@@ -98,20 +98,24 @@ void SelectionManager::select(mge::EntityId id, bool is_parent) {
   }
 }
 
-void SelectionManager::select_virtual(mge::EntityId id) {
-  if (m_virtual_entities.at(id)) return;
-  m_virtual_entities.at(id) = true;
+void SelectionManager::select_virtual(mge::EntityId id, bool is_parent) {
+  if (m_virtual_entities.at(id).is_selected) return;
+  m_virtual_entities.at(id).is_selected = true;
+  m_virtual_entities.at(id).is_parent = is_parent;
   m_selected_count++;
-  m_parent_count++;
+  if (is_parent) m_parent_count++;
   m_selected_entities.push_back(id);
   mge::QueryEntityByIdEvent query_event(id);
   SendEngineEvent(query_event);
-  SelectionUpdateEvent selection_event(id, true, true);
+  query_event.entity.value().get().propagate([this](auto& entity) { select(entity.get_id(), false); });
+  SelectionUpdateEvent selection_event(id, true, is_parent);
   SendEvent(selection_event);
-  if (m_parent_count == 1) {
-    m_displayed_entity = query_event.entity;
-  } else {
-    m_displayed_entity = std::nullopt;
+  if (is_parent) {
+    if (m_parent_count == 1) {
+      m_displayed_entity = query_event.entity;
+    } else {
+      m_displayed_entity = std::nullopt;
+    }
   }
 }
 
@@ -134,13 +138,16 @@ void SelectionManager::unselect(mge::EntityId id) {
 }
 
 void SelectionManager::unselect_virtual(mge::EntityId id) {
-  if (!m_virtual_entities.at(id)) return;
-  m_virtual_entities.at(id) = false;
+  if (!m_virtual_entities.at(id).is_selected) return;
+  m_virtual_entities.at(id).is_selected = false;
+  bool is_parent = m_virtual_entities.at(id).is_parent;
+  m_virtual_entities.at(id).is_parent = true;
   m_selected_count--;
-  m_parent_count--;
+  if (is_parent) m_parent_count--;
   mge::QueryEntityByIdEvent query_event(id);
   SendEngineEvent(query_event);
-  SelectionUpdateEvent selection_event(id, false, true);
+  query_event.entity.value().get().propagate([this](auto& entity) { unselect(entity.get_id()); });
+  SelectionUpdateEvent selection_event(id, false, is_parent);
   SendEvent(selection_event);
 }
 
@@ -149,8 +156,9 @@ void SelectionManager::unselect_all() {
     data.is_selected = false;
     data.is_parent = true;
   }
-  for (auto& [id, is_selected] : m_virtual_entities) {
-    is_selected = false;
+  for (auto& [id, data] : m_virtual_entities) {
+    data.is_selected = false;
+    data.is_parent = true;
   }
   m_selected_count = 0;
   m_parent_count = 0;
@@ -164,7 +172,7 @@ mge::OptionalEntity SelectionManager::get_displayed_entity() const { return m_di
 
 bool SelectionManager::is_selected(mge::EntityId id) const {
   return m_entities.contains(id) && m_entities.at(id).is_selected ||
-         m_virtual_entities.contains(id) && m_virtual_entities.at(id);
+         m_virtual_entities.contains(id) && m_virtual_entities.at(id).is_selected;
 }
 
 const std::string& SelectionManager::get_tag(mge::EntityId id) const { return m_entities.at(id).tag; }
@@ -229,11 +237,11 @@ bool SelectionManager::rename_entity(mge::EntityId id, const std::string& tag) {
 }
 
 void SelectionManager::validate_selected() {
-  mge::vector_remove_if<mge::EntityId>(m_selected_entities,
-                                       [&entities = m_entities, &virtual_entities = m_virtual_entities](auto& id) {
-                                         return (!entities.contains(id) || !entities.at(id).is_selected) &&
-                                                (!virtual_entities.contains(id) || !virtual_entities.at(id));
-                                       });
+  mge::vector_remove_if<mge::EntityId>(
+      m_selected_entities, [&entities = m_entities, &virtual_entities = m_virtual_entities](auto& id) {
+        return (!entities.contains(id) || !entities.at(id).is_selected) &&
+               (!virtual_entities.contains(id) || !virtual_entities.at(id).is_selected);
+      });
   if (m_parent_count == 1) {
     for (auto id : m_selected_entities) {
       if (m_virtual_entities.contains(id) || m_entities.at(id).is_parent) {

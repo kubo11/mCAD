@@ -16,10 +16,15 @@ class SelectionManager {
     bool is_parent;
   };
 
+  struct VirtualEntityMapNode {
+    bool is_selected;
+    bool is_parent;
+  };
+
   SelectionManager();
 
   void select(mge::EntityId id, bool is_parent);
-  void select_virtual(mge::EntityId id);
+  void select_virtual(mge::EntityId id, bool is_parent);
   void unselect(mge::EntityId id);
   void unselect_virtual(mge::EntityId id);
   void unselect_all();
@@ -44,7 +49,7 @@ class SelectionManager {
 
  private:
   std::map<mge::EntityId, EntityMapNode> m_entities;
-  std::map<mge::EntityId, bool> m_virtual_entities;
+  std::map<mge::EntityId, VirtualEntityMapNode> m_virtual_entities;
   std::vector<mge::EntityId> m_selected_entities;
   mge::OptionalEntity m_displayed_entity;
   unsigned int m_selected_count;
