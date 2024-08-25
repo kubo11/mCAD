@@ -30,7 +30,7 @@ bool BezierCurveComponent::get_polygon_status() const {
 
 void BezierCurveComponent::add_point(mge::Entity& point) {
   m_control_points.push_back(
-      {point.register_on_update<mge::TransformComponent>(&BezierCurveComponent::update_renderable, this), point});
+      {point.register_on_update<mge::TransformComponent>(&BezierCurveComponent::update_curve, this), point});
   m_self.add_child(point);
 }
 
@@ -46,24 +46,6 @@ void BezierCurveComponent::remove_point(mge::Entity& point) {
       });
   point.unregister_on_update<mge::TransformComponent>(handle);
   m_self.remove_child(point);
-}
-
-void BezierCurveComponent::update_renderable(mge::Entity& entity) {
-  if (m_block_updates) return;
-  m_self.patch<mge::RenderableComponent<GeometryVertex>>([this](auto& renderable) {
-    auto vertices = generate_geometry();
-    auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
-    vertex_buffer.bind();
-    vertex_buffer.copy(vertices);
-    vertex_buffer.unbind();
-  });
-  m_polygon.patch<mge::RenderableComponent<GeometryVertex>>([this](auto& renderable) {
-    auto vertices = generate_polygon_geometry();
-    auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
-    vertex_buffer.bind();
-    vertex_buffer.copy(vertices);
-    vertex_buffer.unbind();
-  });
 }
 
 void BezierCurveComponent::set_base(BezierCurveBase base) { m_base = base; }

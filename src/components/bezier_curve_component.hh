@@ -18,13 +18,10 @@ struct BezierCurveComponent {
   virtual void add_point(mge::Entity& point);
   virtual void remove_point(mge::Entity& point);
 
-  virtual std::vector<GeometryVertex> generate_geometry() const = 0;
-  virtual std::vector<GeometryVertex> generate_polygon_geometry() const = 0;
-
   virtual void set_base(BezierCurveBase base);
   BezierCurveBase get_base() const;
 
-  void update_renderable(mge::Entity& entity);
+  virtual void update_curve(mge::Entity& entity) = 0;
 
  protected:
   std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_control_points;
@@ -32,6 +29,23 @@ struct BezierCurveComponent {
   mge::Entity& m_self;
   BezierCurveBase m_base;
   bool m_block_updates;
+
+  template <class T, class N>
+  void update_renderables(std::vector<T> curve_vertices, std::vector<N> polygon_vertices) {
+    if (m_block_updates) return;
+    m_self.patch<mge::RenderableComponent<T>>([this, &curve_vertices](auto& renderable) {
+      auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+      vertex_buffer.bind();
+      vertex_buffer.copy(curve_vertices);
+      vertex_buffer.unbind();
+    });
+    m_polygon.patch<mge::RenderableComponent<N>>([this, &polygon_vertices](auto& renderable) {
+      auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
+      vertex_buffer.bind();
+      vertex_buffer.copy(polygon_vertices);
+      vertex_buffer.unbind();
+    });
+  }
 };
 
 #endif  // MCAD_GEOMETRY_BEZIER_C0_CURVE_COMPONENT

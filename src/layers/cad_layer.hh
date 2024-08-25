@@ -4,6 +4,7 @@
 #include "mge.hh"
 
 #include "../events/events.hh"
+#include "../vertices/bezier_curve_c2_interp_vertex.hh"
 #include "../vertices/cursor_vertex.hh"
 #include "../vertices/geometry_vertex.hh"
 #include "../vertices/point_vertex.hh"
@@ -28,6 +29,7 @@ class CadLayer : public mge::Layer {
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_geometry_solid_pipeline = nullptr;
   std::unique_ptr<mge::InstancedRenderPipeline<GeometryVertex, PointInstancedVertex>> m_point_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<BezierCurveC2InterpVertex>> m_bezier_c2_interp_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_polygon_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_cursor_pipeline = nullptr;
 
@@ -68,6 +70,11 @@ class CadLayer : public mge::Layer {
   bool on_update_bezier_curve_c2_polygon_state(BezierCurveC2UpdatePolygonStateEvent& event);
   bool on_update_bezier_curve_c2_base(BezierCurveC2UpdateBaseEvent& event);
   bool on_create_bernstein_point(CreateBernsteinPointEvent& event);
+  // Bezier Curve C2 Interp events
+  bool on_add_bezier_curve_c2_interp(AddBezierCurveC2InterpEvent& event);
+  bool on_add_bezier_curve_c2_interp_point(BezierCurveC2InterpAddPointEvent& event);
+  bool on_delete_bezier_curve_c2_interp_point(BezierCurveC2InterpDeletePointEvent& event);
+  bool on_update_bezier_curve_c2_interp_polygon_state(BezierCurveC2InterpUpdatePolygonStateEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

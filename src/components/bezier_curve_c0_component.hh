@@ -11,10 +11,12 @@ struct BezierCurveC0Component : public BezierCurveComponent {
 
   static std::string get_new_name() { return "BezierCurveC0 " + std::to_string(s_new_id++); }
 
-  virtual std::vector<GeometryVertex> generate_geometry() const override;
-  virtual std::vector<GeometryVertex> generate_polygon_geometry() const override;
+  std::vector<GeometryVertex> generate_geometry() const;
+  std::vector<GeometryVertex> generate_polygon_geometry() const;
 
   virtual void set_base(BezierCurveBase base) override;
+
+  virtual void update_curve(mge::Entity& entity) override;
 
  private:
   static unsigned int s_new_id;

@@ -1,6 +1,7 @@
 #include "ui_layer.hh"
 #include "../components/bezier_curve_c0_component.hh"
 #include "../components/bezier_curve_c2_component.hh"
+#include "../components/bezier_curve_c2_interp_component.hh"
 #include "../components/selectible_component.hh"
 #include "../events/events.hh"
 #include "../input_state.hh"
@@ -335,7 +336,8 @@ void UILayer::define_create_bezier_curve_dialog() {
         AddBezierCurveC2Event event(m_selection_manager.get_selected_ids());
         SendEvent(event);
       } else if (type == 2) {
-        // TODO
+        AddBezierCurveC2InterpEvent event(m_selection_manager.get_selected_ids());
+        SendEvent(event);
       }
       ImGui::CloseCurrentPopup();
     }
@@ -617,6 +619,74 @@ void UILayer::show_bezier_c2_curve_panel(const mge::Entity& entity) {
   }
 }
 
+void UILayer::show_bezier_c2_curve_interp_panel(const mge::Entity& entity) {
+  ImGui::Text("Control points");
+  auto add_button_func = [this]() {
+    if (ImGui::Button("add")) {
+      if (m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+        m_tool_manager.restore_type();
+        m_disable_tools_combo = false;
+      } else {
+        if (m_tool_manager.get_type() != ToolManager::Type::RemoveBezierPoint) {
+          m_tool_manager.set_type_and_update_previous(ToolManager::Type::AddBezierPoint);
+        } else {
+          m_tool_manager.set_type(ToolManager::Type::AddBezierPoint);
+        }
+        m_disable_tools_combo = true;
+      }
+    }
+  };
+  if (m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
+    add_button_func();
+    ImGui::PopStyleColor();
+  } else {
+    add_button_func();
+  }
+
+  auto remove_button_func = [this]() {
+    ImGui::SameLine();
+    if (ImGui::Button("remove")) {
+      if (m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+        m_tool_manager.restore_type();
+        m_disable_tools_combo = false;
+      } else {
+        if (m_tool_manager.get_type() != ToolManager::Type::AddBezierPoint) {
+          m_tool_manager.set_type_and_update_previous(ToolManager::Type::RemoveBezierPoint);
+        } else {
+          m_tool_manager.set_type(ToolManager::Type::RemoveBezierPoint);
+        }
+        m_disable_tools_combo = true;
+      }
+    }
+  };
+  if (m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
+    remove_button_func();
+    ImGui::PopStyleColor();
+  } else {
+    remove_button_func();
+  }
+
+  ImGui::Text("Show berenstein polygon");
+  auto& component = entity.get_component<BezierCurveC2InterpComponent>();
+  std::array<std::string, 2> options = {"yes", "no"};
+  static int selected = 1;
+  if (ImGui::BeginCombo("##berenstein_polygon", options[selected].c_str())) {
+    for (int n = 0; n < options.size(); n++) {
+      const bool is_selected = component.get_polygon_status() && !n || !component.get_polygon_status() && n;
+      if (ImGui::Selectable(options[n].c_str(), is_selected)) {
+        selected = n;
+        BezierCurveC2InterpUpdatePolygonStateEvent polygon_event(entity.get_id(), !n);
+        SendEvent(polygon_event);
+      }
+
+      if (is_selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+}
+
 void UILayer::show_tools_panel() {
   using Tool = ToolManager::Type;
   static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete, Tool::Move, Tool::Scale, Tool::Rotate};
@@ -699,6 +769,20 @@ void UILayer::show_entities_list_panel() {
           BezierCurveC2AddPointEvent event(bezier_id, id);
           SendEvent(event);
         }
+      }
+      if (m_selection_manager.get_displayed_entity().has_value() &&
+          m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC2InterpComponent>()) {
+        auto bezier_id = m_selection_manager.get_displayed_entity().value().get().get_id();
+        if (m_selection_manager.is_selected(id) && m_tool_manager.get_type() == ToolManager::Type::RemoveBezierPoint) {
+          m_selection_manager.unselect(id);
+          BezierCurveC2InterpDeletePointEvent event(bezier_id, id);
+          SendEvent(event);
+        } else if (!m_selection_manager.is_selected(id) &&
+                   m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
+          m_selection_manager.select(id, false);
+          BezierCurveC2InterpAddPointEvent event(bezier_id, id);
+          SendEvent(event);
+        }
       } else {
         if (!ImGui::GetIO().KeyCtrl) {
           m_selection_manager.unselect_all();
@@ -736,6 +820,10 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
 
   if (entity.has_component<BezierCurveC2Component>()) {
     show_bezier_c2_curve_panel(entity);
+  }
+
+  if (entity.has_component<BezierCurveC2InterpComponent>()) {
+    show_bezier_c2_curve_interp_panel(entity);
   }
 
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {
@@ -776,6 +864,13 @@ bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {
              entity.has_component<PointComponent>()) {
     m_selection_manager.select(entity.get_id(), false);
     BezierCurveC2AddPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(), entity.get_id());
+    SendEvent(add_event);
+  } else if (m_selection_manager.get_displayed_entity().has_value() &&
+             m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC2InterpComponent>() &&
+             entity.has_component<PointComponent>()) {
+    m_selection_manager.select(entity.get_id(), false);
+    BezierCurveC2InterpAddPointEvent add_event(m_selection_manager.get_displayed_entity()->get().get_id(),
+                                               entity.get_id());
     SendEvent(add_event);
   }
   return true;

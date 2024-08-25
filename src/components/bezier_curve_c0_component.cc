@@ -6,7 +6,7 @@ BezierCurveC0Component::BezierCurveC0Component(const mge::EntityVector& points, 
     : BezierCurveComponent(BezierCurveBase::BSpline, points, self, polygon) {
   for (auto& data : m_control_points) {
     data.first = data.second.get().register_on_update<mge::TransformComponent, BezierCurveC0Component>(
-        &BezierCurveC0Component::update_renderable, this);
+        &BezierCurveC0Component::update_curve, this);
   }
 }
 
@@ -40,3 +40,7 @@ std::vector<GeometryVertex> BezierCurveC0Component::generate_polygon_geometry() 
 }
 
 void BezierCurveC0Component::set_base(BezierCurveBase base) {}
+
+void BezierCurveC0Component::update_curve(mge::Entity& entity) {
+  update_renderables(generate_geometry(), generate_polygon_geometry());
+}
