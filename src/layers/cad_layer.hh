@@ -30,7 +30,9 @@ class CadLayer : public mge::Layer {
   std::unique_ptr<mge::InstancedRenderPipeline<GeometryVertex, PointInstancedVertex>> m_point_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<BezierCurveC2InterpVertex>> m_bezier_c2_interp_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_surface_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_polygon_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_grid_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_cursor_pipeline = nullptr;
 
   mge::OptionalEntity get_closest_selectible_entity(glm::vec2 screen_space_position) const;
@@ -75,6 +77,11 @@ class CadLayer : public mge::Layer {
   bool on_add_bezier_curve_c2_interp_point(BezierCurveC2InterpAddPointEvent& event);
   bool on_delete_bezier_curve_c2_interp_point(BezierCurveC2InterpDeletePointEvent& event);
   bool on_update_bezier_curve_c2_interp_polygon_state(BezierCurveC2InterpUpdatePolygonStateEvent& event);
+  // Bezier Surface C0 events
+  bool on_add_flat_bezier_surface_c0(AddFlatBezierSurfaceC0Event& event);
+  bool on_add_wrapped_bezier_surface_c0(AddWrappedBezierSurfaceC0Event& event);
+  bool on_update_bezier_surface_c0_grid_state(BezierSurfaceC0UpdateGridStateEvent& event);
+  bool on_update_bezier_surface_c0_line_count(BezierSurfaceC0UpdateLineCountEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

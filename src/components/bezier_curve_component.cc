@@ -12,6 +12,9 @@ BezierCurveComponent::BezierCurveComponent(BezierCurveBase base, const mge::Enti
 BezierCurveComponent::~BezierCurveComponent() {
   mge::DeleteEntityEvent event(m_polygon.get_id());
   SendEngineEvent(event);
+  for (auto& [handle, point] : m_control_points) {
+    point.get().unregister_on_update<mge::TransformComponent>(handle);
+  }
 }
 
 void BezierCurveComponent::set_polygon_status(bool status) {
@@ -51,3 +54,20 @@ void BezierCurveComponent::remove_point(mge::Entity& point) {
 void BezierCurveComponent::set_base(BezierCurveBase base) { m_base = base; }
 
 BezierCurveBase BezierCurveComponent::get_base() const { return m_base; }
+
+void BezierCurveComponent::update_curve_by_self(mge::Entity& entity) {
+  if (m_block_updates) return;
+  m_blocked_updates_count = m_control_points.size() - 1;
+}
+
+void BezierCurveComponent::update_position() {
+  glm::vec3 center = {};
+  for (auto& point : m_self.get_children()) {
+    center += point.get().get_component<mge::TransformComponent>().get_position();
+  }
+  m_block_updates = true;
+  m_self.patch<mge::TransformComponent>([&center, count = m_self.get_children().size()](auto& transform) {
+    transform.set_position(center / static_cast<float>(count));
+  });
+  m_block_updates = false;
+}

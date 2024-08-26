@@ -31,6 +31,7 @@ class SelectionManager {
 
   mge::OptionalEntity get_displayed_entity() const;
   bool is_selected(mge::EntityId id) const;
+  bool is_parent(mge::EntityId id) const;
   const std::string& get_tag(mge::EntityId id) const;
   unsigned int get_selected_count() const;
   bool contains(mge::EntityId id) const;
@@ -105,6 +106,7 @@ class UILayer : public mge::Layer {
   SelectionManager m_selection_manager;
 
   void define_create_bezier_curve_dialog();
+  void define_create_bezier_surface_dialog();
 
   void show_tag_panel(const mge::Entity& entity);
   void show_transform_panel(const mge::Entity& entity);
@@ -114,6 +116,7 @@ class UILayer : public mge::Layer {
   void show_bezier_c0_curve_panel(const mge::Entity& entity);
   void show_bezier_c2_curve_panel(const mge::Entity& entity);
   void show_bezier_c2_curve_interp_panel(const mge::Entity& entity);
+  void show_bezier_c0_surface_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);
@@ -124,6 +127,8 @@ class UILayer : public mge::Layer {
   bool on_mouse_moved(mge::MouseMovedEvent& event);
   bool on_mouse_button_pressed(mge::MouseButtonUpdatedEvent& event);
   bool on_mouse_scroll(mge::MouseScrollEvent& event);
+
+  bool on_ui_selection_updated(UISelectionUpdateEvent& event);
 
   void send_camera_move_events(mge::MouseMovedEvent& event);
   void send_camera_zoom_event(mge::MouseScrollEvent& event);

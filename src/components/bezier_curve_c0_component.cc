@@ -42,5 +42,10 @@ std::vector<GeometryVertex> BezierCurveC0Component::generate_polygon_geometry() 
 void BezierCurveC0Component::set_base(BezierCurveBase base) {}
 
 void BezierCurveC0Component::update_curve(mge::Entity& entity) {
+  if (m_blocked_updates_count > 0) {
+    --m_blocked_updates_count;
+    return;
+  }
   update_renderables(generate_geometry(), generate_polygon_geometry());
+  update_position();
 }

@@ -24,6 +24,7 @@ struct BezierCurveC2Component : public BezierCurveComponent {
   virtual void set_base(BezierCurveBase base) override;
 
   virtual void update_curve(mge::Entity& entity) override;
+  virtual void update_curve_by_self(mge::Entity& entity) override;
 
  private:
   static unsigned int s_new_id;

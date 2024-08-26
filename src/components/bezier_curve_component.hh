@@ -22,6 +22,8 @@ struct BezierCurveComponent {
   BezierCurveBase get_base() const;
 
   virtual void update_curve(mge::Entity& entity) = 0;
+  virtual void update_curve_by_self(mge::Entity& entity);
+  void update_position();
 
  protected:
   std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_control_points;
@@ -29,6 +31,7 @@ struct BezierCurveComponent {
   mge::Entity& m_self;
   BezierCurveBase m_base;
   bool m_block_updates;
+  unsigned int m_blocked_updates_count;
 
   template <class T, class N>
   void update_renderables(std::vector<T> curve_vertices, std::vector<N> polygon_vertices) {

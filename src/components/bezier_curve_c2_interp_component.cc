@@ -99,5 +99,10 @@ std::vector<GeometryVertex> BezierCurveC2InterpComponent::generate_polygon_geome
 void BezierCurveC2InterpComponent::set_base(BezierCurveBase base) {}
 
 void BezierCurveC2InterpComponent::update_curve(mge::Entity& entity) {
+  if (m_blocked_updates_count > 0) {
+    --m_blocked_updates_count;
+    return;
+  }
   update_renderables(generate_geometry(), generate_polygon_geometry());
+  update_position();
 }
