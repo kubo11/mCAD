@@ -258,8 +258,7 @@ void CadLayer::configure() {
   AddEventListener(BezierCurveC2InterpEvents::UpdatePolygonState,
                    CadLayer::on_update_bezier_curve_c2_interp_polygon_state, this);
   // Bezier Surface C0 events
-  AddEventListener(BezierSurfaceC0Events::AddFlat, CadLayer::on_add_flat_bezier_surface_c0, this);
-  AddEventListener(BezierSurfaceC0Events::AddWrapped, CadLayer::on_add_wrapped_bezier_surface_c0, this);
+  AddEventListener(BezierSurfaceC0Events::Add, CadLayer::on_add_bezier_surface_c0, this);
   AddEventListener(BezierSurfaceC0Events::UpdateGridState, CadLayer::on_update_bezier_surface_c0_grid_state, this);
   AddEventListener(BezierSurfaceC0Events::UpdateLineCount, CadLayer::on_update_bezier_surface_c0_line_count, this);
   // Cursor events
@@ -814,15 +813,14 @@ bool CadLayer::on_update_bezier_curve_c2_interp_polygon_state(BezierCurveC2Inter
   return true;
 }
 
-bool CadLayer::on_add_flat_bezier_surface_c0(AddFlatBezierSurfaceC0Event& event) {
+bool CadLayer::on_add_bezier_surface_c0(AddBezierSurfaceC0Event& event) {
   auto& bezier_entity = m_scene.create_entity();
   auto& grid_entity = m_scene.create_entity();
   bezier_entity.add_component<mge::TagComponent>(BezierSurfaceC0Component::get_new_name());
   bezier_entity.add_component<mge::TransformComponent>(
       m_cursor.get_component<mge::TransformComponent>().get_position());
   bezier_entity.add_component<BezierSurfaceC0Component>(event.patch_count_u, event.patch_count_v, event.size_u,
-                                                        event.size_v, BezierSurfaceWrapping::none, bezier_entity,
-                                                        grid_entity);
+                                                        event.size_v, event.wrapping, bezier_entity, grid_entity);
   bezier_entity.add_component<SelectibleComponent>();
   bezier_entity.add_component<ColorComponent>();
   auto& bezier = bezier_entity.get_component<BezierSurfaceC0Component>();
@@ -860,67 +858,6 @@ bool CadLayer::on_add_flat_bezier_surface_c0(AddFlatBezierSurfaceC0Event& event)
       std::move(grid_vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(grid_element_buffer));
   grid_entity
       .add_component<mge::RenderableComponent<GeometryVertex>>(
-          mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_grid_pipeline}},
-          mge::RenderMode::WIREFRAME, std::move(grid_vertex_array),
-          [&bezier_entity](auto& render_pipeline) {
-            render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
-                "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
-          })
-      .disable();
-  bezier_entity.patch<BezierSurfaceC0Component>([&bezier_entity](auto& bezier_component) {
-    bezier_entity.template register_on_update<mge::TransformComponent, BezierSurfaceC0Component>(
-        &BezierSurfaceC0Component::update_surface_by_self, &bezier_component);
-  });
-  mge::AddedEntityEvent add_event(bezier_entity.get_id());
-  SendEngineEvent(add_event);
-  return true;
-}
-
-bool CadLayer::on_add_wrapped_bezier_surface_c0(AddWrappedBezierSurfaceC0Event& event) {
-  auto& bezier_entity = m_scene.create_entity();
-  auto& grid_entity = m_scene.create_entity();
-  bezier_entity.template add_component<mge::TagComponent>(BezierSurfaceC0Component::get_new_name());
-  bezier_entity.template add_component<mge::TransformComponent>(
-      m_cursor.get_component<mge::TransformComponent>().get_position());
-  bezier_entity.template add_component<BezierSurfaceC0Component>(
-      event.patch_count_u, event.patch_count_v, event.height, event.radius, event.wrapping, bezier_entity, grid_entity);
-  bezier_entity.template add_component<SelectibleComponent>();
-  bezier_entity.template add_component<ColorComponent>();
-  auto& bezier = bezier_entity.get_component<BezierSurfaceC0Component>();
-  auto vertices = bezier.generate_geometry();
-  auto surface_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
-  surface_vertex_buffer->bind();
-  surface_vertex_buffer->copy(vertices);
-  surface_vertex_buffer->unbind();
-  auto surface_indices = bezier.generate_surface_topology();
-  auto surface_element_buffer = std::make_unique<mge::ElementBuffer>(mge::ElementBuffer::Type::ELEMENT_ARRAY);
-  surface_element_buffer->bind();
-  surface_element_buffer->copy(surface_indices);
-  surface_element_buffer->unbind();
-  auto surface_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
-      std::move(surface_vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(surface_element_buffer));
-  bezier_entity.template add_component<mge::RenderableComponent<GeometryVertex>>(
-      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_surface_pipeline}},
-      mge::RenderMode::WIREFRAME, std::move(surface_vertex_array), [&bezier_entity](auto& render_pipeline) {
-        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
-            "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
-        render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&bezier_entity]() {
-          return bezier_entity.get_component<BezierSurfaceC0Component>().get_line_count();
-        });
-      });
-  auto grid_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
-  grid_vertex_buffer->bind();
-  grid_vertex_buffer->copy(vertices);
-  grid_vertex_buffer->unbind();
-  auto grid_indices = bezier.generate_grid_topology();
-  auto grid_element_buffer = std::make_unique<mge::ElementBuffer>(mge::ElementBuffer::Type::ELEMENT_ARRAY);
-  grid_element_buffer->bind();
-  grid_element_buffer->copy(grid_indices);
-  grid_element_buffer->unbind();
-  auto grid_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
-      std::move(grid_vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(grid_element_buffer));
-  grid_entity
-      .template add_component<mge::RenderableComponent<GeometryVertex>>(
           mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_grid_pipeline}},
           mge::RenderMode::WIREFRAME, std::move(grid_vertex_array),
           [&bezier_entity](auto& render_pipeline) {

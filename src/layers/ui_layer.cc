@@ -379,17 +379,23 @@ void UILayer::define_create_bezier_surface_dialog() {
     ImGui::RadioButton("v", &wrapping, 2);
 
     // add patch and size input
+    ImGui::Text("patch count u/v");
     ImGui::InputInt2("##bezier_patch", reinterpret_cast<int*>(&patch_count));
+    if (wrapping == 0) {
+      ImGui::Text("patch size u/v");
+    } else {
+      ImGui::Text("patch size height/radius");
+    }
     ImGui::InputFloat2("##bezier_size", reinterpret_cast<float*>(&size), "%.2f");
 
     if (ImGui::Button("Create", ImVec2(120, 0))) {
       if (type == 0) {
-        if (wrapping == 0) {
-          AddFlatBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[0], size[1]);
+        if (wrapping == 1) {
+          AddBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[1], size[0], BezierSurfaceWrapping::u);
           SendEvent(event);
         } else {
-          AddWrappedBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[0], size[1],
-                                               wrapping == 1 ? BezierSurfaceWrapping::u : BezierSurfaceWrapping::v);
+          AddBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[0], size[1],
+                                        wrapping == 0 ? BezierSurfaceWrapping::none : BezierSurfaceWrapping::v);
           SendEvent(event);
         }
       } else if (type == 1) {

@@ -78,8 +78,7 @@ class CadLayer : public mge::Layer {
   bool on_delete_bezier_curve_c2_interp_point(BezierCurveC2InterpDeletePointEvent& event);
   bool on_update_bezier_curve_c2_interp_polygon_state(BezierCurveC2InterpUpdatePolygonStateEvent& event);
   // Bezier Surface C0 events
-  bool on_add_flat_bezier_surface_c0(AddFlatBezierSurfaceC0Event& event);
-  bool on_add_wrapped_bezier_surface_c0(AddWrappedBezierSurfaceC0Event& event);
+  bool on_add_bezier_surface_c0(AddBezierSurfaceC0Event& event);
   bool on_update_bezier_surface_c0_grid_state(BezierSurfaceC0UpdateGridStateEvent& event);
   bool on_update_bezier_surface_c0_line_count(BezierSurfaceC0UpdateLineCountEvent& event);
   // Cursor events

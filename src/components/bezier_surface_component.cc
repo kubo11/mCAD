@@ -250,7 +250,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   float dAlpha = 2.0f * glm::pi<float>() / m_patch_count_u;
   float dV = size_v / m_patch_count_v;
   float sin = std::sin(dAlpha / 2);
-  float R = 3.0f * size_u / (3.0f - 2.0f * sin * sin);
+  float R = 3.0f * size_u / (3.0f - 2.0f * sin * sin) / 2.0f;
   glm::vec3 first_point = pos + glm::vec3{0.0f, 0.0f, -size_v / 2};
 
   SurfacePointsVector points;
@@ -283,7 +283,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   float dU = size_u / m_patch_count_u;
   float dAlpha = 2.0f * glm::pi<float>() / m_patch_count_v;
   float sin = std::sin(dAlpha / 2);
-  float R = 3.0f * size_v / (3.0f - 2.0f * sin * sin);
+  float R = 3.0f * size_v / (3.0f - 2.0f * sin * sin) / 2.0f;
   glm::vec3 first_point = pos + glm::vec3{-size_u / 2.0f, 0.0f, 0.0f};
 
   SurfacePointsVector points;

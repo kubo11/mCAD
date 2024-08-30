@@ -5,38 +5,23 @@
 
 #include "../components/bezier_surface_component.hh"
 
-enum class BezierSurfaceC0Events { AddFlat, AddWrapped, UpdateGridState, UpdateLineCount };
+enum class BezierSurfaceC0Events { Add, UpdateGridState, UpdateLineCount };
 
-class AddFlatBezierSurfaceC0Event : public mge::Event<BezierSurfaceC0Events> {
+class AddBezierSurfaceC0Event : public mge::Event<BezierSurfaceC0Events> {
  public:
-  AddFlatBezierSurfaceC0Event(float patch_count_u, float patch_count_v, float size_u, float size_v)
-      : mge::Event<BezierSurfaceC0Events>(BezierSurfaceC0Events::AddFlat, "AddFlatBezierSurfaceC0Event"),
+  AddBezierSurfaceC0Event(float patch_count_u, float patch_count_v, float size_u, float size_v,
+                          BezierSurfaceWrapping wrapping)
+      : mge::Event<BezierSurfaceC0Events>(BezierSurfaceC0Events::Add, "AddBezierSurfaceC0Event"),
         patch_count_u(patch_count_u),
         patch_count_v(patch_count_v),
         size_u(size_u),
-        size_v(size_v) {}
+        size_v(size_v),
+        wrapping(wrapping) {}
 
   float patch_count_u;
   float patch_count_v;
   float size_u;
   float size_v;
-};
-
-class AddWrappedBezierSurfaceC0Event : public mge::Event<BezierSurfaceC0Events> {
- public:
-  AddWrappedBezierSurfaceC0Event(float patch_count_u, float patch_count_v, float height, float radius,
-                                 BezierSurfaceWrapping wrapping)
-      : mge::Event<BezierSurfaceC0Events>(BezierSurfaceC0Events::AddWrapped, "AddWrappedBezierSurfaceC0Event"),
-        patch_count_u(patch_count_u),
-        patch_count_v(patch_count_v),
-        height(height),
-        radius(radius),
-        wrapping(wrapping) {}
-
-  float patch_count_u;
-  float patch_count_v;
-  float height;
-  float radius;
   BezierSurfaceWrapping wrapping;
 };
 
