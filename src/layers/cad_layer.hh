@@ -85,6 +85,10 @@ class CadLayer : public mge::Layer {
   bool on_add_bezier_surface_c0(AddBezierSurfaceC0Event& event);
   bool on_update_bezier_surface_c0_grid_state(BezierSurfaceC0UpdateGridStateEvent& event);
   bool on_update_bezier_surface_c0_line_count(BezierSurfaceC0UpdateLineCountEvent& event);
+  // Bezier Surface C2 events
+  bool on_add_bezier_surface_c2(AddBezierSurfaceC2Event& event);
+  bool on_update_bezier_surface_c2_grid_state(BezierSurfaceC2UpdateGridStateEvent& event);
+  bool on_update_bezier_surface_c2_line_count(BezierSurfaceC2UpdateLineCountEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

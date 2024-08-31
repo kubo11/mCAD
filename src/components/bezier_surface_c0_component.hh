@@ -11,8 +11,6 @@ struct BezierSurfaceC0Component : public BezierSurfaceComponent {
 
   static std::string get_new_name() { return "BezierSurfaceC0 " + std::to_string(s_new_id++); }
 
-  std::vector<GeometryVertex> generate_geometry() const;
-
   virtual void update_surface(mge::Entity& entity) override;
 
  private:

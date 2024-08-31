@@ -10,6 +10,9 @@ BezierSurfaceC0Component::BezierSurfaceC0Component(unsigned int patch_count_u, u
     : BezierSurfaceComponent(patch_count_u, patch_count_v, wrapping, self, grid) {
   m_self.register_on_update<mge::TransformComponent, BezierSurfaceC0Component>(
       &BezierSurfaceC0Component::update_surface_by_self, this);
+  auto [point_count_u, point_count_v] = get_bezier_point_counts();
+  m_point_count_u = point_count_u;
+  m_point_count_v = point_count_v;
   create_points(size_u, size_v);
 }
 
@@ -31,17 +34,6 @@ void BezierSurfaceC0Component::create_points(float size_u, float size_v) {
           {point.register_on_update<mge::TransformComponent>(&BezierSurfaceC0Component::update_surface, this), point});
     }
   }
-}
-
-std::vector<GeometryVertex> BezierSurfaceC0Component::generate_geometry() const {
-  std::vector<GeometryVertex> vertices;
-  vertices.reserve(m_point_count_u * m_point_count_v);
-  for (auto& row : m_points) {
-    for (auto& point : row) {
-      vertices.push_back(point.second.get().get_component<mge::TransformComponent>().get_position());
-    }
-  }
-  return vertices;
 }
 
 void BezierSurfaceC0Component::update_surface(mge::Entity& entity) {

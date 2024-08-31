@@ -4,6 +4,7 @@
 #include "../components/bezier_curve_c2_component.hh"
 #include "../components/bezier_curve_c2_interp_component.hh"
 #include "../components/bezier_surface_c0_component.hh"
+#include "../components/bezier_surface_c2_component.hh"
 #include "../components/color_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../components/point_component.hh"
@@ -27,6 +28,7 @@ void CadLayer::configure() {
   m_scene.enable_on_update_listeners<BezierCurveC2Component>();
   m_scene.enable_on_update_listeners<BezierCurveC2InterpComponent>();
   m_scene.enable_on_update_listeners<BezierSurfaceC0Component>();
+  m_scene.enable_on_update_listeners<BezierSurfaceC2Component>();
   // Pipelines
   auto base_shader_path = fs::current_path() / "src" / "shaders";
   mge::RenderPipelineBuilder pipeline_builder;
@@ -261,6 +263,10 @@ void CadLayer::configure() {
   AddEventListener(BezierSurfaceC0Events::Add, CadLayer::on_add_bezier_surface_c0, this);
   AddEventListener(BezierSurfaceC0Events::UpdateGridState, CadLayer::on_update_bezier_surface_c0_grid_state, this);
   AddEventListener(BezierSurfaceC0Events::UpdateLineCount, CadLayer::on_update_bezier_surface_c0_line_count, this);
+  // Bezier Surface C2 events
+  AddEventListener(BezierSurfaceC2Events::Add, CadLayer::on_add_bezier_surface_c2, this);
+  AddEventListener(BezierSurfaceC2Events::UpdateGridState, CadLayer::on_update_bezier_surface_c2_grid_state, this);
+  AddEventListener(BezierSurfaceC2Events::UpdateLineCount, CadLayer::on_update_bezier_surface_c2_line_count, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -928,6 +934,79 @@ bool CadLayer::on_update_bezier_surface_c0_grid_state(BezierSurfaceC0UpdateGridS
 
 bool CadLayer::on_update_bezier_surface_c0_line_count(BezierSurfaceC0UpdateLineCountEvent& event) {
   m_scene.get_entity(event.id).patch<BezierSurfaceC0Component>(
+      [&event](auto& bezier) { bezier.set_line_count(event.line_count); });
+  return true;
+}
+
+bool CadLayer::on_add_bezier_surface_c2(AddBezierSurfaceC2Event& event) {
+  auto& bezier_entity = m_scene.create_entity();
+  auto& grid_entity = m_scene.create_entity();
+  bezier_entity.add_component<mge::TagComponent>(BezierSurfaceC2Component::get_new_name());
+  bezier_entity.add_component<mge::TransformComponent>(
+      m_cursor.get_component<mge::TransformComponent>().get_position());
+  bezier_entity.add_component<BezierSurfaceC2Component>(event.patch_count_u, event.patch_count_v, event.size_u,
+                                                        event.size_v, event.wrapping, bezier_entity, grid_entity);
+  bezier_entity.add_component<SelectibleComponent>();
+  bezier_entity.add_component<ColorComponent>();
+  auto& bezier = bezier_entity.get_component<BezierSurfaceC2Component>();
+  auto vertices = bezier.generate_geometry();
+  auto surface_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  surface_vertex_buffer->bind();
+  surface_vertex_buffer->copy(vertices);
+  surface_vertex_buffer->unbind();
+  auto surface_indices = bezier.generate_surface_topology();
+  auto surface_element_buffer = std::make_unique<mge::ElementBuffer>(mge::ElementBuffer::Type::ELEMENT_ARRAY);
+  surface_element_buffer->bind();
+  surface_element_buffer->copy(surface_indices);
+  surface_element_buffer->unbind();
+  auto surface_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(surface_vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(surface_element_buffer));
+  bezier_entity.add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_surface_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(surface_vertex_array), [&bezier_entity](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC2Component>().get_line_count();
+        });
+      });
+  auto grid_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  grid_vertex_buffer->bind();
+  grid_vertex_buffer->copy(vertices);
+  grid_vertex_buffer->unbind();
+  auto grid_indices = bezier.generate_grid_topology();
+  auto grid_element_buffer = std::make_unique<mge::ElementBuffer>(mge::ElementBuffer::Type::ELEMENT_ARRAY);
+  grid_element_buffer->bind();
+  grid_element_buffer->copy(grid_indices);
+  grid_element_buffer->unbind();
+  auto grid_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(grid_vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(grid_element_buffer));
+  grid_entity
+      .add_component<mge::RenderableComponent<GeometryVertex>>(
+          mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_grid_pipeline}},
+          mge::RenderMode::WIREFRAME, std::move(grid_vertex_array),
+          [&bezier_entity](auto& render_pipeline) {
+            render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+                "color", [&bezier_entity]() { return bezier_entity.get_component<ColorComponent>().get_color(); });
+          })
+      .disable();
+  bezier_entity.patch<BezierSurfaceC2Component>([&bezier_entity](auto& bezier_component) {
+    bezier_entity.template register_on_update<mge::TransformComponent, BezierSurfaceC2Component>(
+        &BezierSurfaceC2Component::update_surface_by_self, &bezier_component);
+  });
+  mge::AddedEntityEvent add_event(bezier_entity.get_id());
+  SendEngineEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_update_bezier_surface_c2_grid_state(BezierSurfaceC2UpdateGridStateEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierSurfaceC2Component>(
+      [&event](auto& bezier) { bezier.set_grid_status(event.state); });
+  return true;
+}
+
+bool CadLayer::on_update_bezier_surface_c2_line_count(BezierSurfaceC2UpdateLineCountEvent& event) {
+  m_scene.get_entity(event.id).patch<BezierSurfaceC2Component>(
       [&event](auto& bezier) { bezier.set_line_count(event.line_count); });
   return true;
 }

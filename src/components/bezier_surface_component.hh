@@ -25,6 +25,7 @@ struct BezierSurfaceComponent {
   void update_surface_by_self(mge::Entity& entity);
   void update_position();
 
+  virtual std::vector<GeometryVertex> generate_geometry() const;
   std::vector<unsigned int> generate_surface_topology() const;
   std::vector<unsigned int> generate_grid_topology() const;
   SurfacePointsVector generate_boor_points(const glm::vec3& pos, float size_u, float size_v) const;
@@ -44,23 +45,24 @@ struct BezierSurfaceComponent {
   unsigned int m_blocked_updates_count;
 
   template <class T>
-  void update_renderables(std::vector<T> vertices, std::vector<unsigned int> surface_indices,
-                          std::vector<unsigned int> grid_indices) {
+  void update_renderables(const std::vector<T>& surface_vertices, const std::vector<T>& grid_vertices,
+                          const std::vector<unsigned int>& surface_indices,
+                          const std::vector<unsigned int>& grid_indices) {
     if (m_block_updates) return;
-    m_self.patch<mge::RenderableComponent<T>>([this, &vertices, &surface_indices](auto& renderable) {
+    m_self.patch<mge::RenderableComponent<T>>([this, &surface_vertices, &surface_indices](auto& renderable) {
       auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
       vertex_buffer.bind();
-      vertex_buffer.copy(vertices);
+      vertex_buffer.copy(surface_vertices);
       vertex_buffer.unbind();
       auto& element_buffer = renderable.get_vertex_array().get_element_buffer();
       element_buffer.bind();
       element_buffer.copy(surface_indices);
       element_buffer.unbind();
     });
-    m_grid.patch<mge::RenderableComponent<T>>([this, &vertices, &grid_indices](auto& renderable) {
+    m_grid.patch<mge::RenderableComponent<T>>([this, &grid_vertices, &grid_indices](auto& renderable) {
       auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
       vertex_buffer.bind();
-      vertex_buffer.copy(vertices);
+      vertex_buffer.copy(grid_vertices);
       vertex_buffer.unbind();
       auto& element_buffer = renderable.get_vertex_array().get_element_buffer();
       element_buffer.bind();
@@ -69,7 +71,13 @@ struct BezierSurfaceComponent {
     });
   }
 
-  std::pair<unsigned int, unsigned int> get_point_counts() const;
+  template <class T>
+  void update_renderables(const std::vector<T>& vertices, const std::vector<unsigned int>& surface_indices,
+                          const std::vector<unsigned int>& grid_indices) {
+    update_renderables<T>(vertices, vertices, surface_indices, grid_indices);
+  }
+
+  std::pair<unsigned int, unsigned int> get_bezier_point_counts() const;
   std::vector<unsigned int> generate_grid_topology_without_wrapping() const;
   std::vector<unsigned int> generate_grid_topology_u_wrapping() const;
   std::vector<unsigned int> generate_grid_topology_v_wrapping() const;

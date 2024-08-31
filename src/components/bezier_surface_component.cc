@@ -8,11 +8,7 @@ BezierSurfaceComponent::BezierSurfaceComponent(unsigned int patch_count_u, unsig
       m_wrapping(wrapping),
       m_self(self),
       m_grid(grid),
-      m_line_count(4) {
-  auto [point_count_u, point_count_v] = get_point_counts();
-  m_point_count_u = point_count_u;
-  m_point_count_v = point_count_v;
-}
+      m_line_count(4) {}
 
 BezierSurfaceComponent::~BezierSurfaceComponent() {
   mge::DeleteEntityEvent event(m_grid.get_id());
@@ -63,8 +59,20 @@ void BezierSurfaceComponent::update_surface_by_self(mge::Entity& entity) {
   m_blocked_updates_count = m_point_count_u * m_point_count_v - 1;
 }
 
+std::vector<GeometryVertex> BezierSurfaceComponent::generate_geometry() const {
+  std::vector<GeometryVertex> vertices;
+  auto [point_count_u, point_count_v] = get_bezier_point_counts();
+  vertices.reserve(point_count_u * point_count_v);
+  for (auto& row : m_points) {
+    for (auto& point : row) {
+      vertices.push_back(point.second.get().get_component<mge::TransformComponent>().get_position());
+    }
+  }
+  return vertices;
+}
+
 std::vector<unsigned int> BezierSurfaceComponent::generate_surface_topology() const {
-  auto [point_count_u, point_count_v] = get_point_counts();
+  auto [point_count_u, point_count_v] = get_bezier_point_counts();
 
   std::vector<unsigned int> indices;
   indices.reserve(m_patch_count_u * m_patch_count_v * 16);
@@ -114,7 +122,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   }
 }
 
-std::pair<unsigned int, unsigned int> BezierSurfaceComponent::get_point_counts() const {
+std::pair<unsigned int, unsigned int> BezierSurfaceComponent::get_bezier_point_counts() const {
   unsigned int point_count_u;
   unsigned int point_count_v;
   switch (m_wrapping) {
@@ -404,7 +412,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_int
 
 BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_bezier_points_without_wrapping(
     const SurfacePointsVector& boor_points) const {
-  auto [point_count_u, point_count_v] = get_point_counts();
+  auto [point_count_u, point_count_v] = get_bezier_point_counts();
   SurfacePointsVector bezier_points;
   bezier_points.resize(point_count_v);
   for (int v = 0; v < bezier_points.size(); ++v) {
@@ -455,7 +463,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_bez
 
 BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_bezier_points_v_wrapping(
     const SurfacePointsVector& boor_points) const {
-  auto [point_count_u, point_count_v] = get_point_counts();
+  auto [point_count_u, point_count_v] = get_bezier_point_counts();
   SurfacePointsVector bezier_points;
   bezier_points.resize(point_count_v);
   for (int v = 0; v < bezier_points.size(); ++v) {

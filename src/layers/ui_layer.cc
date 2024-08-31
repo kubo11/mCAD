@@ -3,6 +3,7 @@
 #include "../components/bezier_curve_c2_component.hh"
 #include "../components/bezier_curve_c2_interp_component.hh"
 #include "../components/bezier_surface_c0_component.hh"
+#include "../components/bezier_surface_c2_component.hh"
 #include "../components/selectible_component.hh"
 #include "../events/events.hh"
 #include "../input_state.hh"
@@ -408,7 +409,14 @@ void UILayer::define_create_bezier_surface_dialog() {
           SendEvent(event);
         }
       } else if (type == 1) {
-        // TODO C2
+        if (wrapping == 1) {
+          AddBezierSurfaceC2Event event(patch_count[0], patch_count[1], size[1], size[0], BezierSurfaceWrapping::u);
+          SendEvent(event);
+        } else {
+          AddBezierSurfaceC2Event event(patch_count[0], patch_count[1], size[0], size[1],
+                                        wrapping == 0 ? BezierSurfaceWrapping::none : BezierSurfaceWrapping::v);
+          SendEvent(event);
+        }
       }
       ImGui::CloseCurrentPopup();
     }
@@ -791,6 +799,34 @@ void UILayer::show_bezier_c0_surface_panel(const mge::Entity& entity) {
   }
 }
 
+void UILayer::show_bezier_c2_surface_panel(const mge::Entity& entity) {
+  static int line_count = 4;
+  ImGui::Text("Line count");
+  if (ImGui::InputInt("##line", &line_count, 1, 1)) {
+    line_count = std::clamp(line_count, 1, 128);
+    BezierSurfaceC2UpdateLineCountEvent event(entity.get_id(), line_count);
+    SendEvent(event);
+  }
+
+  ImGui::Text("Show grid");
+  auto& component = entity.get_component<BezierSurfaceC2Component>();
+  std::array<std::string, 2> options = {"yes", "no"};
+  static int selected = 1;
+  if (ImGui::BeginCombo("##gridc2", options[selected].c_str())) {
+    for (int n = 0; n < options.size(); n++) {
+      const bool is_selected = component.get_grid_status() && !n || !component.get_grid_status() && n;
+      if (ImGui::Selectable(options[n].c_str(), is_selected)) {
+        selected = n;
+        BezierSurfaceC2UpdateGridStateEvent polygon_event(entity.get_id(), !n);
+        SendEvent(polygon_event);
+      }
+
+      if (is_selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+}
+
 void UILayer::show_tools_panel() {
   using Tool = ToolManager::Type;
   static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete, Tool::Move, Tool::Scale, Tool::Rotate};
@@ -945,6 +981,10 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
 
   if (entity.has_component<BezierSurfaceC0Component>()) {
     show_bezier_c0_surface_panel(entity);
+  }
+
+  if (entity.has_component<BezierSurfaceC2Component>()) {
+    show_bezier_c2_surface_panel(entity);
   }
 
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {
