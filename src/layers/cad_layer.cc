@@ -277,6 +277,7 @@ void CadLayer::configure() {
   // Selection Events
   AddEventListener(SelectionEvents::SelectionUpdate, CadLayer::on_selection_updated, this);
   AddEventListener(SelectionEvents::UnselectAllEntities, CadLayer::on_unselect_all_entities, this);
+  AddEventListener(SelectionEvents::Degrade, CadLayer::on_degrade_selection, this);
 }
 
 void CadLayer::update() {
@@ -350,6 +351,51 @@ void CadLayer::update_point_instance_data(mge::Entity& entity) {
       [&point_position, &point_color](auto& renderable) {
         renderable.set_instance_data({point_position, point_color});
       });
+}
+
+void CadLayer::relative_translate(mge::Entity& entity, const glm::vec3& center, const glm::vec3& destination) {
+  entity.run_and_propagate([offset = destination - center](auto& entity) {
+    if (!entity.template has_component<mge::TransformComponent>()) return;
+    entity.template patch<mge::TransformComponent>([&offset](auto& transform) { transform.translate(offset); });
+  });
+}
+
+void CadLayer::relative_scale(mge::Entity& entity, const glm::vec3& center, const glm::vec3& scaling_factor) {
+  entity.patch<mge::TransformComponent>([&scaling_factor, &center](auto& transform) {
+    transform.scale(scaling_factor);
+    glm::vec3 offset;
+    offset.x =
+        (scaling_factor.x > 1.0f) ? transform.get_position().x - center.x : center.x - transform.get_position().x;
+    offset.x *= std::abs(scaling_factor.x - 1.0f);
+    offset.y =
+        (scaling_factor.y > 1.0f) ? transform.get_position().y - center.y : center.y - transform.get_position().y;
+    offset.y *= std::abs(scaling_factor.y - 1.0f);
+    offset.z =
+        (scaling_factor.z > 1.0f) ? transform.get_position().z - center.z : center.z - transform.get_position().z;
+    offset.z *= std::abs(scaling_factor.z - 1.0f);
+    transform.translate(offset);
+  });
+
+  auto new_center = entity.get_component<mge::TransformComponent>().get_position();
+
+  for (auto& child : entity.get_children()) {
+    if (!child.get().has_component<mge::TransformComponent>()) continue;
+    relative_scale(child, new_center, scaling_factor);
+  }
+}
+
+void CadLayer::relative_rotate(mge::Entity& entity, const glm::vec3& center, const glm::quat& q) {
+  entity.patch<mge::TransformComponent>([&center, &q](auto& transform) {
+    transform.rotate(q);
+    transform.set_position(center + q * (transform.get_position() - center));
+  });
+
+  // auto new_center = entity.get_component<mge::TransformComponent>().get_position();
+
+  for (auto& child : entity.get_children()) {
+    if (!child.get().has_component<mge::TransformComponent>()) continue;
+    relative_rotate(child, center, q);
+  }
 }
 
 bool CadLayer::on_camera_angle_changed(mge::CameraAngleChangedEvent& event) {
@@ -894,14 +940,12 @@ bool CadLayer::on_cursor_move(CursorMoveEvent& event) {
 
 bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
   glm::vec3 center = m_mass_center.get_component<MassCenterComponent>().get_position();
-  glm::vec3 offset = m_cursor.get_component<mge::TransformComponent>().get_position() - center;
+  glm::vec3 destination = m_cursor.get_component<mge::TransformComponent>().get_position();
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    entity.run_and_propagate([&offset](auto& entity) {
-      entity.template patch<mge::TransformComponent>([&offset](auto& transform) { transform.translate(offset); });
-    });
+    relative_translate(entity, center, destination);
   }
 
   update_mass_center();
@@ -911,24 +955,27 @@ bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
 
 bool CadLayer::on_relative_scale(RelativeScaleEvent& event) {
   glm::vec3 center = m_mass_center.get_component<MassCenterComponent>().get_position();
-  float scale_factor = glm::distance(center, unproject_point(event.scaling_end)) /
-                       glm::distance(center, unproject_point(event.scaling_begin));
+  float scaling_factor = glm::distance(center, unproject_point(event.scaling_end)) /
+                         glm::distance(center, unproject_point(event.scaling_begin));
+
+  auto alter_scaling = [scaling_factor](mge::Entity& entity) {
+    if (!entity.has_component<TorusComponent>() && !entity.has_component<BezierSurfaceC0Component>())
+      return glm::vec3{scaling_factor, scaling_factor, scaling_factor};
+    float new_scaling_factor;
+    if (scaling_factor > 1.0f) {
+      new_scaling_factor = 1.0f + (scaling_factor - 1.0f) * 1000.0f;
+    } else {
+      new_scaling_factor = 1.0f - (1.0f - scaling_factor) * 1000.0f;
+    }
+    return glm::vec3{new_scaling_factor, new_scaling_factor, new_scaling_factor};
+  };
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    entity.run_and_propagate([&scale_factor, &center](auto& entity) {
-      entity.template patch<mge::TransformComponent>([&scale_factor, &center](auto& transform) {
-        transform.scale(scale_factor);
-        auto offset = transform.get_position() - center;
-        if (scale_factor < 1.0f) offset = -offset;
-        offset *= std::abs(scale_factor - 1.0f);
-        transform.translate(offset);
-      });
-    });
+    relative_scale(entity, center, alter_scaling(entity));
   }
 
-  m_mass_center.patch<MassCenterComponent>([](auto& center) { center.update_position(); });
   update_mass_center();
 
   return true;
@@ -946,12 +993,7 @@ bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    entity.run_and_propagate([&angle, &center, &event](auto& entity) {
-      entity.template patch<mge::TransformComponent>([&angle, &center, &event](auto& transform) {
-        transform.rotate(angle, event.axis);
-        transform.set_position(center + glm::angleAxis(angle, event.axis) * (transform.get_position() - center));
-      });
-    });
+    relative_rotate(entity, center, glm::angleAxis(angle, event.axis));
   }
 
   update_mass_center();
@@ -961,10 +1003,10 @@ bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
 
 bool CadLayer::on_translate(TranslateEvent& event) {
   auto& entity = m_scene.get_entity(event.id);
-  entity.run_and_propagate([this, &event](auto& entity) {
-    if (!entity.template has_component<mge::TransformComponent>()) return;
-    entity.template patch<mge::TransformComponent>([&event](auto& transform) { transform.set_position(event.offset); });
-  });
+  auto center = entity.get_component<mge::TransformComponent>().get_position();
+
+  relative_translate(entity, center, event.destination);
+
   update_mass_center();
 
   return true;
@@ -972,22 +1014,26 @@ bool CadLayer::on_translate(TranslateEvent& event) {
 
 bool CadLayer::on_scale(ScaleEvent& event) {
   auto& entity = m_scene.get_entity(event.id);
-  entity.run_and_propagate([this, &event](auto& entity) {
-    if (!entity.template has_component<mge::TransformComponent>()) return;
-    entity.template patch<mge::TransformComponent>([&event](auto& transform) { transform.set_scale(event.scale); });
-  });
+  auto center = entity.get_component<mge::TransformComponent>().get_position();
+  auto old_scale = entity.get_component<mge::TransformComponent>().get_scale();
+
+  relative_scale(entity, center, event.scale / old_scale);
+
   update_mass_center();
+
   return true;
 }
 
 bool CadLayer::on_rotate(RotateEvent& event) {
   auto& entity = m_scene.get_entity(event.id);
-  entity.run_and_propagate([this, &event](auto& entity) {
-    if (!entity.template has_component<mge::TransformComponent>()) return;
-    entity.template patch<mge::TransformComponent>(
-        [&event](auto& transform) { transform.set_rotation(event.rotation); });
-  });
+  auto center = entity.get_component<mge::TransformComponent>().get_position();
+  auto q1 = glm::quat(entity.get_component<mge::TransformComponent>().get_rotation());
+  auto q2 = event.rotation;
+
+  relative_rotate(entity, center, glm::inverse(q1) * q2);
+
   update_mass_center();
+
   return true;
 }
 
@@ -1038,18 +1084,18 @@ bool CadLayer::on_selection_updated(SelectionUpdateEvent& event) {
   }
   entity.patch<ColorComponent>([&color](auto& color_component) { color_component.set_color(color); });
 
-  if (entity.has_component<mge::TransformComponent>()) {
+  if (entity.has_component<mge::TransformComponent>() && event.is_parent) {
     if (event.selection) {
       m_mass_center.add_child(entity);
       m_mass_center.patch<MassCenterComponent>(
-          [&entity, &event](auto& mass_center) { mass_center.add_entity(entity, event.is_parent); });
+          [&entity, &event](auto& mass_center) { mass_center.add_entity(entity); });
     } else {
       m_mass_center.remove_child(entity);
       m_mass_center.patch<MassCenterComponent>(
-          [&entity, &event](auto& mass_center) { mass_center.remove_entity(entity, event.is_parent); });
+          [&entity, &event](auto& mass_center) { mass_center.remove_entity(entity); });
     }
     update_mass_center();
-    if (m_mass_center.get_component<MassCenterComponent>().get_parent_count() > 1) {
+    if (m_mass_center.get_component<MassCenterComponent>().get_count() > 1) {
       m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
           [](auto& renderable) { renderable.enable(); });
     } else {
@@ -1073,5 +1119,19 @@ bool CadLayer::on_unselect_all_entities(UnselectAllEntitiesEvent& event) {
   });
   m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
       [](auto& renderable) { renderable.disable(); });
+  return true;
+}
+
+bool CadLayer::on_degrade_selection(DegradeSelectionEvent& event) {
+  auto& entity = m_scene.get_entity(event.id);
+  m_mass_center.patch<MassCenterComponent>([&entity](auto& mass_center) { mass_center.remove_entity(entity); });
+  m_mass_center.remove_child(entity);
+  if (m_mass_center.get_component<MassCenterComponent>().get_count() > 1) {
+    m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+        [](auto& renderable) { renderable.enable(); });
+  } else {
+    m_mass_center.patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>(
+        [](auto& renderable) { renderable.disable(); });
+  }
   return true;
 }

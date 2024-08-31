@@ -52,7 +52,7 @@ void BezierSurfaceComponent::update_position() {
     }
   }
   m_block_updates = true;
-  m_self.patch<mge::TransformComponent>([&center, count = m_patch_count_u * m_patch_count_v](auto& transform) {
+  m_self.patch<mge::TransformComponent>([&center, count = m_point_count_u * m_point_count_v](auto& transform) {
     transform.set_position(center / static_cast<float>(count));
   });
   m_block_updates = false;

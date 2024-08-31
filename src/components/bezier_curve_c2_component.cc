@@ -19,6 +19,7 @@ BezierCurveC2Component::BezierCurveC2Component(const mge::EntityVector& points, 
 }
 
 BezierCurveC2Component::~BezierCurveC2Component() {
+  if (m_base == BezierCurveBase::Bernstein) m_self.remove_all_children();
   for (auto& point : m_bernstein_points) {
     mge::DeleteEntityEvent event(point.second.get().get_id());
     SendEngineEvent(event);

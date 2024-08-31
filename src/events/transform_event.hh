@@ -15,11 +15,11 @@ class TranslateToCursorEvent : public mge::Event<TransformEvents> {
 
 class TranslateEvent : public mge::Event<TransformEvents> {
  public:
-  TranslateEvent(mge::EntityId id, glm::vec3 offset)
-      : mge::Event<TransformEvents>(TransformEvents::Translate, "TranslateEvent"), id(id), offset(offset) {}
+  TranslateEvent(mge::EntityId id, glm::vec3 destination)
+      : mge::Event<TransformEvents>(TransformEvents::Translate, "TranslateEvent"), id(id), destination(destination) {}
 
   mge::EntityId id;
-  glm::vec3 offset;
+  glm::vec3 destination;
 };
 
 class RelativeScaleEvent : public mge::Event<TransformEvents> {

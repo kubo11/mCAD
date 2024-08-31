@@ -80,7 +80,16 @@ void SelectionManager::select(mge::EntityId id, bool is_parent) {
     select_virtual(id, is_parent);
     return;
   }
-  if (m_entities.at(id).is_selected) return;
+  if (m_entities.at(id).is_selected) {
+    if (m_entities.at(id).is_parent && !is_parent) {
+      m_entities.at(id).is_parent = false;
+      m_parent_count--;
+      mge::vector_remove(m_selected_entities, id);
+      DegradeSelectionEvent event(id);
+      SendEvent(event);
+    }
+    return;
+  }
   m_entities.at(id).is_selected = true;
   m_entities.at(id).is_parent = is_parent;
   m_selected_count++;
@@ -440,15 +449,15 @@ void UILayer::show_transform_panel(const mge::Entity& entity) {
   bool update_rotation = false;
   ImGui::Text("rotation");
   if (ImGui::SliderFloat("x", &rotation.x, -pi, pi, "%.2f")) {
-    RotateEvent event(entity.get_id(), glm::angleAxis(rotation.x, glm::vec3(1.0f, 0.0f, 0.0f)));
+    RotateEvent event(entity.get_id(), glm::quat(rotation));
     SendEvent(event);
   }
   if (ImGui::SliderFloat("y", &rotation.y, -pi, pi, "%.2f")) {
-    RotateEvent event(entity.get_id(), glm::angleAxis(rotation.y, glm::vec3(0.0f, 1.0f, 0.0f)));
+    RotateEvent event(entity.get_id(), glm::quat(rotation));
     SendEvent(event);
   }
   if (ImGui::SliderFloat("z", &rotation.z, -pi, pi, "%.2f")) {
-    RotateEvent event(entity.get_id(), glm::angleAxis(rotation.z, glm::vec3(0.0f, 0.0f, 1.0f)));
+    RotateEvent event(entity.get_id(), glm::quat(rotation));
     SendEvent(event);
   }
 
@@ -456,6 +465,9 @@ void UILayer::show_transform_panel(const mge::Entity& entity) {
   ImGui::Text("scale");
   glm::vec3 scale = component.get_scale();
   if (ImGui::InputFloat3("##scale", reinterpret_cast<float*>(&scale), "%.2f")) {
+    if (glm::abs(scale.x) < glm::epsilon<float>() || glm::abs(scale.y) < glm::epsilon<float>() ||
+        glm::abs(scale.z) < glm::epsilon<float>())
+      return;
     ScaleEvent event(entity.get_id(), scale);
     SendEvent(event);
   }
@@ -849,11 +861,13 @@ void UILayer::show_entities_list_panel() {
           m_selection_manager.unselect(id);
           BezierCurveC0DeletePointEvent event(bezier_id, id);
           SendEvent(event);
+          continue;
         } else if (!m_selection_manager.is_selected(id) &&
                    m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
           m_selection_manager.select(id, false);
           BezierCurveC0AddPointEvent event(bezier_id, id);
           SendEvent(event);
+          continue;
         }
       } else if (m_selection_manager.get_displayed_entity().has_value() &&
                  m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC2Component>()) {
@@ -862,11 +876,13 @@ void UILayer::show_entities_list_panel() {
           m_selection_manager.unselect(id);
           BezierCurveC2DeletePointEvent event(bezier_id, id);
           SendEvent(event);
+          continue;
         } else if (!m_selection_manager.is_selected(id) &&
                    m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
           m_selection_manager.select(id, false);
           BezierCurveC2AddPointEvent event(bezier_id, id);
           SendEvent(event);
+          continue;
         }
       } else if (m_selection_manager.get_displayed_entity().has_value() &&
                  m_selection_manager.get_displayed_entity()->get().has_component<BezierCurveC2InterpComponent>()) {
@@ -875,21 +891,23 @@ void UILayer::show_entities_list_panel() {
           m_selection_manager.unselect(id);
           BezierCurveC2InterpDeletePointEvent event(bezier_id, id);
           SendEvent(event);
+          continue;
         } else if (!m_selection_manager.is_selected(id) &&
                    m_tool_manager.get_type() == ToolManager::Type::AddBezierPoint) {
           m_selection_manager.select(id, false);
           BezierCurveC2InterpAddPointEvent event(bezier_id, id);
           SendEvent(event);
+          continue;
         }
+      }
+
+      if (!ImGui::GetIO().KeyCtrl) {
+        m_selection_manager.unselect_all();
+      }
+      if (m_selection_manager.is_selected(id)) {
+        if (m_selection_manager.is_parent(id)) m_selection_manager.unselect(id);
       } else {
-        if (!ImGui::GetIO().KeyCtrl) {
-          m_selection_manager.unselect_all();
-        }
-        if (m_selection_manager.is_selected(id)) {
-          if (m_selection_manager.is_parent(id)) m_selection_manager.unselect(id);
-        } else {
-          m_selection_manager.select(id, true);
-        }
+        m_selection_manager.select(id, true);
       }
     }
   }

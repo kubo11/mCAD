@@ -43,6 +43,10 @@ class CadLayer : public mge::Layer {
   void update_point_instance_data(mge::Entity& entity);
   void update_parent_bezier(mge::Entity& entity);
 
+  void relative_translate(mge::Entity& entity, const glm::vec3& center, const glm::vec3& destination);
+  void relative_scale(mge::Entity& entity, const glm::vec3& center, const glm::vec3& scaling_factor);
+  void relative_rotate(mge::Entity& entity, const glm::vec3& center, const glm::quat& q);
+
   // Camera events
   bool on_camera_angle_changed(mge::CameraAngleChangedEvent& event);
   bool on_camera_position_changed(mge::CameraPositionChangedEvent& event);
@@ -97,6 +101,7 @@ class CadLayer : public mge::Layer {
   // Seleciton events
   bool on_selection_updated(SelectionUpdateEvent& event);
   bool on_unselect_all_entities(UnselectAllEntitiesEvent& event);
+  bool on_degrade_selection(DegradeSelectionEvent& event);
 };
 
 #endif  // MCAD_CAD_LAYER_HH
