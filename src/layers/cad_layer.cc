@@ -33,25 +33,29 @@ void CadLayer::configure() {
   auto base_shader_path = fs::current_path() / "src" / "shaders";
   mge::RenderPipelineBuilder pipeline_builder;
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "solid" / "surface"))
-      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_geometry_solid_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::TRIANGLE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "solid" / "wireframe"))
-      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_geometry_wireframe_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "cursor"))
       .add_uniform_update<glm::mat4>("projection_view",
-                                     [&camera = m_scene.get_current_camera()]() {
+                                     [&scene = m_scene]() {
+                                       auto& camera = scene.get_current_camera();
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
   m_cursor_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::POINT));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier"))
       .add_uniform_update<glm::mat4>("projection_view",
-                                     [&camera = m_scene.get_current_camera()]() {
+                                     [&scene = m_scene]() {
+                                       auto& camera = scene.get_current_camera();
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; })
@@ -59,7 +63,8 @@ void CadLayer::configure() {
   m_bezier_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::PATCH));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier_interp"))
       .add_uniform_update<glm::mat4>("projection_view",
-                                     [&camera = m_scene.get_current_camera()]() {
+                                     [&scene = m_scene]() {
+                                       auto& camera = scene.get_current_camera();
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; })
@@ -68,24 +73,28 @@ void CadLayer::configure() {
       std::move(pipeline_builder.build<BezierCurveC2InterpVertex>(mge::DrawPrimitiveType::PATCH));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier_surface"))
       .add_uniform_update<glm::mat4>("projection_view",
-                                     [&camera = m_scene.get_current_camera()]() {
+                                     [&scene = m_scene]() {
+                                       auto& camera = scene.get_current_camera();
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .set_patch_count(16);
   m_bezier_surface_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::PATCH));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier_poly"))
-      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_bezier_polygon_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE_STRIP));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier_poly"))
-      .add_uniform_update<glm::mat4>("projection_view", [&camera = m_scene.get_current_camera()]() {
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_bezier_grid_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "point"))
       .add_uniform_update<glm::mat4>("projection_view",
-                                     [&camera = m_scene.get_current_camera()]() {
+                                     [&scene = m_scene]() {
+                                       auto& camera = scene.get_current_camera();
                                        return camera.get_projection_matrix() * camera.get_view_matrix();
                                      })
       .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
@@ -224,6 +233,8 @@ void CadLayer::configure() {
   m_mass_center.add_component<ColorComponent>(glm::vec3{1.0f, 0.0f, 0.0f});
   m_mass_center.add_component<MassCenterComponent>();
 
+  // Anaglyph events
+  AddEventListener(AnaglyphEvents::UpdateState, CadLayer::on_anaglyph_update_state, this);
   // Camera events
   mge::AddEventListener(mge::CameraEvents::CameraAngleChanged, CadLayer::on_camera_angle_changed, this);
   mge::AddEventListener(mge::CameraEvents::CameraPositionChanged, CadLayer::on_camera_position_changed, this);
@@ -287,6 +298,7 @@ void CadLayer::configure() {
 }
 
 void CadLayer::update() {
+  // destroy marked entities
   while (!m_to_be_destroyed.empty()) {
     auto id = m_to_be_destroyed.back();
     m_to_be_destroyed.pop_back();
@@ -295,18 +307,90 @@ void CadLayer::update() {
     SendEngineEvent(event);
   }
 
-  m_geometry_wireframe_pipeline->run();
-  m_geometry_solid_pipeline->run();
-  m_bezier_pipeline->run();
-  m_bezier_c2_interp_pipeline->run();
-  m_bezier_polygon_pipeline->run();
-  m_bezier_grid_pipeline->run();
-  m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", false);
-  m_bezier_surface_pipeline->run();
-  m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
-  m_bezier_surface_pipeline->run();
-  m_point_pipeline->run();
-  m_cursor_pipeline->run();
+  glm::mat4 view0 = m_scene.get_camera(0).get_view_matrix();
+  glm::mat4 proj0 = m_scene.get_camera(0).get_projection_matrix();
+  dynamic_cast<mge::AnaglyphCamera&>(m_scene.get_camera(1)).set_eye(mge::AnaglyphCamera::Eye::Left);
+  glm::mat4 view1 = m_scene.get_camera(1).get_view_matrix();
+  glm::mat4 proj1 = m_scene.get_camera(1).get_projection_matrix();
+  dynamic_cast<mge::AnaglyphCamera&>(m_scene.get_camera(1)).set_eye(mge::AnaglyphCamera::Eye::Right);
+  glm::mat4 view2 = m_scene.get_camera(1).get_view_matrix();
+  glm::mat4 proj2 = m_scene.get_camera(1).get_projection_matrix();
+
+  // draw
+  if (m_do_anaglyphs) {
+    glBlendFunc(GL_SRC_ALPHA, GL_SRC1_ALPHA);
+    auto& anaglyph_camera = dynamic_cast<mge::AnaglyphCamera&>(m_scene.get_current_camera());
+    // left eye
+    anaglyph_camera.set_eye(mge::AnaglyphCamera::Eye::Left);
+    m_geometry_wireframe_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_geometry_wireframe_pipeline->run();
+    m_geometry_solid_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_geometry_solid_pipeline->run();
+    m_bezier_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_bezier_pipeline->run();
+    m_bezier_c2_interp_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_bezier_c2_interp_pipeline->run();
+    m_bezier_polygon_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_bezier_polygon_pipeline->run();
+    m_bezier_grid_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_bezier_grid_pipeline->run();
+    m_bezier_surface_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", false);
+    m_bezier_surface_pipeline->run();
+    m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
+    m_bezier_surface_pipeline->run();
+    m_point_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_point_pipeline->run();
+    m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_cursor_pipeline->run();
+    glClear(GL_DEPTH_BUFFER_BIT);
+    // right eye
+    anaglyph_camera.set_eye(mge::AnaglyphCamera::Eye::Right);
+    m_geometry_wireframe_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_geometry_wireframe_pipeline->run();
+    m_geometry_solid_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_geometry_solid_pipeline->run();
+    m_bezier_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_bezier_pipeline->run();
+    m_bezier_c2_interp_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_bezier_c2_interp_pipeline->run();
+    m_bezier_polygon_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_bezier_polygon_pipeline->run();
+    m_bezier_grid_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_bezier_grid_pipeline->run();
+    m_bezier_surface_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", false);
+    m_bezier_surface_pipeline->run();
+    m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
+    m_bezier_surface_pipeline->run();
+    m_point_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_point_pipeline->run();
+    m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_cursor_pipeline->run();
+  } else {
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    m_geometry_wireframe_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_geometry_wireframe_pipeline->run();
+    m_geometry_solid_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_geometry_solid_pipeline->run();
+    m_bezier_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_bezier_pipeline->run();
+    m_bezier_c2_interp_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_bezier_c2_interp_pipeline->run();
+    m_bezier_polygon_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_bezier_polygon_pipeline->run();
+    m_bezier_grid_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_bezier_grid_pipeline->run();
+    m_bezier_surface_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", false);
+    m_bezier_surface_pipeline->run();
+    m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
+    m_bezier_surface_pipeline->run();
+    m_point_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_point_pipeline->run();
+    m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_cursor_pipeline->run();
+  }
 }
 
 glm::vec3 CadLayer::unproject_point(glm::vec2 pos) const {
@@ -396,12 +480,15 @@ void CadLayer::relative_rotate(mge::Entity& entity, const glm::vec3& center, con
     transform.set_position(center + q * (transform.get_position() - center));
   });
 
-  // auto new_center = entity.get_component<mge::TransformComponent>().get_position();
-
   for (auto& child : entity.get_children()) {
     if (!child.get().has_component<mge::TransformComponent>()) continue;
     relative_rotate(child, center, q);
   }
+}
+
+bool CadLayer::on_anaglyph_update_state(AnaglyphUpdateStateEvent& event) {
+  m_do_anaglyphs = event.state;
+  return false;
 }
 
 bool CadLayer::on_camera_angle_changed(mge::CameraAngleChangedEvent& event) {
@@ -1062,7 +1149,7 @@ bool CadLayer::on_relative_scale(RelativeScaleEvent& event) {
 
 bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
   glm::vec3 center = m_mass_center.get_component<MassCenterComponent>().get_position();
-  auto camera = m_scene.get_current_camera();
+  auto& camera = m_scene.get_current_camera();
   auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
   glm::vec2 center_screen_space = proj_view * glm::vec4(center, 1.0f);
   float angle = glm::asin(glm::cross(glm::vec3(glm::normalize(event.rotation_begin - center_screen_space), 0.0f),

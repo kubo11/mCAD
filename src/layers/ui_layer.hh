@@ -93,7 +93,7 @@ class RotationAxis {
 
 class UILayer : public mge::Layer {
  public:
-  UILayer(mge::Entity& mass_center);
+  UILayer();
   ~UILayer() = default;
 
   virtual void configure() override;
@@ -121,6 +121,7 @@ class UILayer : public mge::Layer {
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);
+  void show_anaglyph_panel();
 
   bool on_added_entity(mge::AddedEntityEvent& event);
   bool on_deleted_entity(mge::DeletedEntityEvent& event);

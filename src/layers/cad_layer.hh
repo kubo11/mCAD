@@ -20,6 +20,7 @@ class CadLayer : public mge::Layer {
   mge::Entity& get_mass_center() { return m_mass_center; }
 
  private:
+  bool m_do_anaglyphs;
   mge::Scene& m_scene;
   mge::Entity& m_cursor;
   mge::Entity& m_mass_center;
@@ -47,6 +48,8 @@ class CadLayer : public mge::Layer {
   void relative_scale(mge::Entity& entity, const glm::vec3& center, const glm::vec3& scaling_factor);
   void relative_rotate(mge::Entity& entity, const glm::vec3& center, const glm::quat& q);
 
+  // Anaglyph events
+  bool on_anaglyph_update_state(AnaglyphUpdateStateEvent& event);
   // Camera events
   bool on_camera_angle_changed(mge::CameraAngleChangedEvent& event);
   bool on_camera_position_changed(mge::CameraPositionChangedEvent& event);

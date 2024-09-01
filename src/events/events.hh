@@ -1,6 +1,7 @@
 #ifndef MCAD_EVENTS
 #define MCAD_EVENTS
 
+#include "anaglyph_event.hh"
 #include "bezier_curve_c0_event.hh"
 #include "bezier_curve_c2_event.hh"
 #include "bezier_curve_c2_interp_event.hh"
@@ -14,8 +15,8 @@
 #include "transform_event.hh"
 #include "ui_event.hh"
 
-DeclareClientEventManager(BezierCurveC0Events, BezierCurveC2Events, BezierCurveC2InterpEvents, BezierSurfaceC0Events,
-                          BezierSurfaceC2Events, CursorEvents, InputStateEvents, PointEvents, SelectionEvents,
-                          TorusEvents, TransformEvents, UIEvents);
+DeclareClientEventManager(AnaglyphEvents, BezierCurveC0Events, BezierCurveC2Events, BezierCurveC2InterpEvents,
+                          BezierSurfaceC0Events, BezierSurfaceC2Events, CursorEvents, InputStateEvents, PointEvents,
+                          SelectionEvents, TorusEvents, TransformEvents, UIEvents);
 
 #endif  // MCAD_EVENTS

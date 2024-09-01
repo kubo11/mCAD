@@ -273,8 +273,7 @@ void SelectionManager::validate_selected() {
   }
 }
 
-UILayer::UILayer(mge::Entity& mass_center)
-    : m_tool_manager(), m_disable_tools_combo(false), m_rotation_axis(), m_selection_manager() {}
+UILayer::UILayer() : m_tool_manager(), m_disable_tools_combo(false), m_rotation_axis(), m_selection_manager() {}
 
 void UILayer::configure() {
   mge::AddEventListener(mge::EntityEvents::Added, UILayer::on_added_entity, this);
@@ -322,6 +321,7 @@ void UILayer::update() {
       ImGuiIO& io = ImGui::GetIO();
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
       ImGui::EndTabItem();
+      show_anaglyph_panel();
     }
     ImGui::EndTabBar();
   }
@@ -1000,6 +1000,48 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
     }
   }
   ImGui::PopStyleColor();
+}
+
+void UILayer::show_anaglyph_panel() {
+  ImGui::Separator();
+  ImGui::Text("Anaglyphs");
+  // combo on/off
+  std::array<std::string, 2> options = {"on", "off"};
+  static int selected = 1;
+  if (ImGui::BeginCombo("##anaglyph_state", options[selected].c_str())) {
+    for (int n = 0; n < options.size(); n++) {
+      const bool is_selected = n == selected;
+      if (ImGui::Selectable(options[n].c_str(), is_selected)) {
+        selected = n;
+        AnaglyphUpdateStateEvent event(!n);
+        SendEvent(event);
+      }
+
+      if (is_selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+  // eye dist
+  static float eye_distance = 0.06f;
+  ImGui::Text("Eye distance");
+  if (ImGui::InputFloat("##eye_distance", &eye_distance, 0.1f, 0.1f, "%.2f")) {
+    AnaglyphUpdateEyeDistanceEvent event(eye_distance);
+    SendEvent(event);
+  }
+  // proj plane dist
+  static float projective_plane_distance = 1.0f;
+  ImGui::Text("Projective plane distance");
+  if (ImGui::InputFloat("##projective_plane_distance", &projective_plane_distance, 0.1f, 0.1f, "%.2f")) {
+    AnaglyphUpdateProjectivePlaneDistanceEvent event(projective_plane_distance);
+    SendEvent(event);
+  }
+  // screen dist
+  static float screen_distance = 1.0f;
+  ImGui::Text("Screen distance");
+  if (ImGui::InputFloat("##screen_distance", &screen_distance, 0.1f, 0.1f, "%.2f")) {
+    AnaglyphUpdateScreenDistanceEvent event(screen_distance);
+    SendEvent(event);
+  }
 }
 
 bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {

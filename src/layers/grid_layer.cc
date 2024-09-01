@@ -3,6 +3,8 @@
 GridLayer::GridLayer(mge::Scene& scene) : m_scene(scene) {}
 
 void GridLayer::configure() {
+  AddEventListener(AnaglyphEvents::UpdateState, GridLayer::on_anaglyph_update_state, this);
+
   auto vertices = std::vector<GridVertex>{{{1.0f, 1.0f}}, {{1.0f, -1.0f}}, {{-1.0f, -1.0f}}, {{-1.0f, 1.0f}}};
   auto vertex_buffer = std::make_unique<mge::Buffer<GridVertex>>();
   vertex_buffer->bind();
@@ -22,7 +24,8 @@ void GridLayer::configure() {
   m_render_pipeline =
       std::move(pipeline_builder.add_shader_program(shader_program)
                     .add_uniform_update<glm::mat4>("projection_view",
-                                                   [&camera = m_scene.get_current_camera()]() {
+                                                   [&scene = m_scene] {
+                                                     auto& camera = scene.get_current_camera();
                                                      return camera.get_projection_matrix() * camera.get_view_matrix();
                                                    })
                     .build<GridVertex>(mge::DrawPrimitiveType::TRIANGLE));
@@ -31,4 +34,28 @@ void GridLayer::configure() {
       mge::RenderMode::SOLID, std::move(vertex_array)));
 }
 
-void GridLayer::update() { m_render_pipeline->run(); }
+void GridLayer::update() {
+  // draw
+  if (m_do_anaglyphs) {
+    glBlendFunc(GL_ONE, GL_ONE);
+    auto& anaglyph_camera = dynamic_cast<mge::AnaglyphCamera&>(m_scene.get_current_camera());
+    // left eye
+    anaglyph_camera.set_eye(mge::AnaglyphCamera::Eye::Left);
+    m_render_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_render_pipeline->run();
+    glClear(GL_DEPTH_BUFFER_BIT);
+    // right eye
+    anaglyph_camera.set_eye(mge::AnaglyphCamera::Eye::Right);
+    m_render_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_render_pipeline->run();
+  } else {
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    m_render_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_render_pipeline->run();
+  }
+}
+
+bool GridLayer::on_anaglyph_update_state(AnaglyphUpdateStateEvent& event) {
+  m_do_anaglyphs = event.state;
+  return false;
+}

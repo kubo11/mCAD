@@ -8,6 +8,7 @@ in vec3 farPoint;
 uniform mat4 projection_view;
 uniform float near_plane;
 uniform float far_plane;
+uniform int anaglyph_state;
 
 out vec4 outColor;
 
@@ -32,10 +33,17 @@ vec4 grid(vec3 pos, float scale) {
   float minimumz = min(derivative.y, 1);
   float minimumx = min(derivative.x, 1);
   vec4 color = vec4(0.2, 0.2, 0.2, 1.0 - min(line, 1.0));
-  // z axis
+  if (color.a < 0.01) discard;
+  //  z axis
   if (pos.x > -2 * minimumx && pos.x < 2 * minimumx) color.z = 1.0;
   // x axis
   if (pos.z > -2 * minimumz && pos.z < 2 * minimumz) color.x = 1.0;
+
+  if (anaglyph_state == 1)
+    color.xyz = vec3(1.0, 0.0, 0.0);
+  else if (anaglyph_state == 2)
+    color.xyz = vec3(0.0, 1.0, 1.0);
+
   return color;
 }
 
