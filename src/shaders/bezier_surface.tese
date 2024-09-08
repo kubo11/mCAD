@@ -17,11 +17,11 @@ void main() {
   float u;
   float v;
   if (flip_uv) {
-    u = gl_TessCoord.y / (1 - 1.0 / line_count);
+    u = (gl_TessCoord.y * float(line_count)) / float(line_count - 1);
     v = gl_TessCoord.x;
   } else {
     u = gl_TessCoord.x;
-    v = gl_TessCoord.y / (1 - 1.0 / line_count);
+    v = (gl_TessCoord.y * float(line_count)) / float(line_count - 1);
   }
 
   vec3 bezierV[4];

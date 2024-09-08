@@ -401,26 +401,28 @@ void UILayer::define_create_bezier_surface_dialog() {
     ImGui::InputFloat2("##bezier_size", reinterpret_cast<float*>(&size), "%.2f");
 
     if (ImGui::Button("Create", ImVec2(120, 0))) {
-      if (type == 0) {
-        if (wrapping == 1) {
-          AddBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[1], size[0], BezierSurfaceWrapping::u);
-          SendEvent(event);
-        } else {
-          AddBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[0], size[1],
-                                        wrapping == 0 ? BezierSurfaceWrapping::none : BezierSurfaceWrapping::v);
-          SendEvent(event);
+      if (!(wrapping == 1 && patch_count[0] < 3) && !(wrapping == 2 && patch_count[1] < 3)) {
+        if (type == 0) {
+          if (wrapping == 1) {
+            AddBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[1], size[0], BezierSurfaceWrapping::u);
+            SendEvent(event);
+          } else {
+            AddBezierSurfaceC0Event event(patch_count[0], patch_count[1], size[0], size[1],
+                                          wrapping == 0 ? BezierSurfaceWrapping::none : BezierSurfaceWrapping::v);
+            SendEvent(event);
+          }
+        } else if (type == 1) {
+          if (wrapping == 1) {
+            AddBezierSurfaceC2Event event(patch_count[0], patch_count[1], size[1], size[0], BezierSurfaceWrapping::u);
+            SendEvent(event);
+          } else {
+            AddBezierSurfaceC2Event event(patch_count[0], patch_count[1], size[0], size[1],
+                                          wrapping == 0 ? BezierSurfaceWrapping::none : BezierSurfaceWrapping::v);
+            SendEvent(event);
+          }
         }
-      } else if (type == 1) {
-        if (wrapping == 1) {
-          AddBezierSurfaceC2Event event(patch_count[0], patch_count[1], size[1], size[0], BezierSurfaceWrapping::u);
-          SendEvent(event);
-        } else {
-          AddBezierSurfaceC2Event event(patch_count[0], patch_count[1], size[0], size[1],
-                                        wrapping == 0 ? BezierSurfaceWrapping::none : BezierSurfaceWrapping::v);
-          SendEvent(event);
-        }
+        ImGui::CloseCurrentPopup();
       }
-      ImGui::CloseCurrentPopup();
     }
     ImGui::SetItemDefaultFocus();
     ImGui::SameLine();
@@ -802,7 +804,7 @@ void UILayer::show_bezier_c0_surface_panel(const mge::Entity& entity) {
 }
 
 void UILayer::show_bezier_c2_surface_panel(const mge::Entity& entity) {
-  static int line_count = entity.get_component<BezierSurfaceC2Component>().get_line_count();
+  int line_count = entity.get_component<BezierSurfaceC2Component>().get_line_count();
   ImGui::Text("Line count");
   if (ImGui::InputInt("##line", &line_count, 1, 1)) {
     line_count = std::clamp(line_count, 1, 128);

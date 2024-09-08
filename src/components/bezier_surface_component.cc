@@ -222,7 +222,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   unsigned int boor_point_count_v = m_patch_count_v + 3;
   float dU = size_u / m_patch_count_u;
   float dV = size_v / m_patch_count_v;
-  glm::vec3 first_point = pos + glm::vec3{-size_u / 2.0f, 0.0f, -size_v / 2.0f};
+  glm::vec3 first_point = pos + glm::vec3{-size_u / 2.0f - dU, 0.0f, -size_v / 2.0f - dV};
 
   SurfacePointsVector points;
   points.resize(boor_point_count_v);
@@ -231,22 +231,14 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   }
 
   for (int v = 0; v < boor_point_count_v; ++v) {
-    points[v][0] = first_point;
-    points[v][1] = first_point + glm::vec3{dU / 3.0f, 0.0f, 0.0f};
-    for (int u = 2; u < boor_point_count_u - 2; ++u) {
-      points[v][u] = first_point + glm::vec3{static_cast<float>(u - 1) * dU, 0.0f, 0.0f};
+    for (int u = 0; u < boor_point_count_u; ++u) {
+      points[v][u] = first_point + glm::vec3{static_cast<float>(u) * dU, 0.0f, 0.0f};
     }
-    points[v][boor_point_count_u - 2] = first_point + glm::vec3{(m_patch_count_u - 1.0 / 3.0f) * dU, 0.0f, 0.0f};
-    points[v][boor_point_count_u - 1] = first_point + glm::vec3{m_patch_count_u * dU, 0.0f, 0.0f};
   }
   for (int u = 0; u < boor_point_count_u; ++u) {
-    points[1][u] = points[1][u] + glm::vec3{0.0f, 0.0f, dV / 3.0f};
-    for (int v = 2; v < boor_point_count_v - 2; ++v) {
-      points[v][u] = points[v][u] + glm::vec3{0.0f, 0.0f, static_cast<float>(v - 1) * dV};
+    for (int v = 0; v < boor_point_count_v; ++v) {
+      points[v][u] = points[v][u] + glm::vec3{0.0f, 0.0f, static_cast<float>(v) * dV};
     }
-    points[boor_point_count_v - 2][u] =
-        points[boor_point_count_v - 2][u] + glm::vec3{0.0f, 0.0f, (m_patch_count_v - 1.0 / 3.0f) * dV};
-    points[boor_point_count_v - 1][u] = points[boor_point_count_v - 1][u] + glm::vec3{0.0f, 0.0f, m_patch_count_v * dV};
   }
   return points;
 }
@@ -259,7 +251,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   float dV = size_v / m_patch_count_v;
   float sin = std::sin(dAlpha / 2);
   float R = 3.0f * size_u / (3.0f - 2.0f * sin * sin) / 2.0f;
-  glm::vec3 first_point = pos + glm::vec3{0.0f, 0.0f, -size_v / 2};
+  glm::vec3 first_point = pos + glm::vec3{0.0f, 0.0f, -size_v / 2 - dV};
 
   SurfacePointsVector points;
   points.resize(boor_point_count_v);
@@ -273,13 +265,9 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
     }
   }
   for (int u = 0; u < boor_point_count_u; ++u) {
-    points[1][u] = points[1][u] + glm::vec3{0.0f, 0.0f, dV / 3.0f};
-    for (int v = 2; v < boor_point_count_v - 2; ++v) {
-      points[v][u] = points[v][u] + glm::vec3{0.0f, 0.0f, static_cast<float>(v - 1) * dV};
+    for (int v = 0; v < boor_point_count_v; ++v) {
+      points[v][u] = points[v][u] + glm::vec3{0.0f, 0.0f, static_cast<float>(v) * dV};
     }
-    points[boor_point_count_v - 2][u] =
-        points[boor_point_count_v - 2][u] + glm::vec3{0.0f, 0.0f, (m_patch_count_v - 1.0 / 3.0f) * dV};
-    points[boor_point_count_v - 1][u] = points[boor_point_count_v - 1][u] + glm::vec3{0.0f, 0.0f, m_patch_count_v * dV};
   }
   return points;
 }
@@ -292,7 +280,7 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   float dAlpha = 2.0f * glm::pi<float>() / m_patch_count_v;
   float sin = std::sin(dAlpha / 2);
   float R = 3.0f * size_v / (3.0f - 2.0f * sin * sin) / 2.0f;
-  glm::vec3 first_point = pos + glm::vec3{-size_u / 2.0f, 0.0f, 0.0f};
+  glm::vec3 first_point = pos + glm::vec3{-size_u / 2.0f - dU, 0.0f, 0.0f};
 
   SurfacePointsVector points;
   points.resize(boor_point_count_v);
@@ -301,13 +289,9 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_boo
   }
 
   for (int v = 0; v < boor_point_count_v; ++v) {
-    points[v][0] = first_point;
-    points[v][1] = first_point + glm::vec3{dU / 3.0f, 0.0f, 0.0f};
-    for (int u = 2; u < boor_point_count_u - 2; ++u) {
-      points[v][u] = first_point + glm::vec3{static_cast<float>(u - 1) * dU, 0.0f, 0.0f};
+    for (int u = 0; u < boor_point_count_u; ++u) {
+      points[v][u] = first_point + glm::vec3{static_cast<float>(u) * dU, 0.0f, 0.0f};
     }
-    points[v][boor_point_count_u - 2] = first_point + glm::vec3{(m_patch_count_u - 1.0 / 3.0f) * dU, 0.0f, 0.0f};
-    points[v][boor_point_count_u - 1] = first_point + glm::vec3{m_patch_count_u * dU, 0.0f, 0.0f};
   }
   for (int u = 0; u < boor_point_count_u; ++u) {
     for (int v = 0; v < boor_point_count_v; ++v) {
@@ -346,23 +330,21 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_int
     f.resize(m_patch_count_u);
     std::vector<glm::vec3> g;
     g.resize(m_patch_count_u);
+    glm::vec3 fLast = (boor_points[v][boor_points[v].size() - 2] + boor_points[v][boor_points[v].size() - 1]) / 2.0f;
+    glm::vec3 gFirst = (boor_points[v][0] + boor_points[v][1]) / 2.0f;
 
-    f[0] = boor_points[v][1];
-    if (m_patch_count_u > 1) {
-      g[0] = (boor_points[v][1] + boor_points[v][2]) / 2.0f;
-      for (int patch_u = 1; patch_u < m_patch_count_u - 1; ++patch_u) {
-        f[patch_u] = (2.0f * boor_points[v][patch_u + 1] + boor_points[v][patch_u + 2]) / 3.0f;
-        g[patch_u] = (boor_points[v][patch_u + 1] + 2.0f * boor_points[v][patch_u + 2]) / 3.0f;
-      }
-      f[m_patch_count_u - 1] = (boor_points[v][m_patch_count_u] + boor_points[v][m_patch_count_u + 1]) / 2.0f;
+    // f[0] = intermediate_points[v][0];
+    // g[0] = (intermediate_points[v][1] + intermediate_points[v][2]) / 2.0f;
+    for (int patch_u = 0; patch_u < m_patch_count_u; ++patch_u) {
+      f[patch_u] = (2.0f * boor_points[v][patch_u + 1] + boor_points[v][patch_u + 2]) / 3.0f;
+      g[patch_u] = (boor_points[v][patch_u + 1] + 2.0f * boor_points[v][patch_u + 2]) / 3.0f;
     }
-    g[m_patch_count_u - 1] = boor_points[v][m_patch_count_u + 1];
 
-    e[0] = boor_points[v][0];
+    e[0] = (gFirst + f[0]) / 2.0f;
     for (int patch_u = 1; patch_u < m_patch_count_u; ++patch_u) {
       e[patch_u] = (g[patch_u - 1] + f[patch_u]) / 2.0f;
     }
-    e[m_patch_count_u] = boor_points[v][m_patch_count_u + 2];
+    e[m_patch_count_u] = (g[m_patch_count_u - 1] + fLast) / 2.0f;
 
     for (int patch_u = 0; patch_u < m_patch_count_u; ++patch_u) {
       intermediate_points[v].push_back(e[patch_u]);
@@ -386,15 +368,17 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_int
     f.resize(m_patch_count_u);
     std::vector<glm::vec3> g;
     g.resize(m_patch_count_u);
+    glm::vec3 gFirst = (boor_points[v][0] + boor_points[v][1]) / 2.0f;
 
-    f[0] = (2.0f * boor_points[v][0] + boor_points[v][1]) / 3.0f;
-    g[0] = (boor_points[v][0] + 2.0f * boor_points[v][1]) / 3.0f;
-    for (int patch_u = 1; patch_u < m_patch_count_u; ++patch_u) {
+    for (int patch_u = 0; patch_u < m_patch_count_u; ++patch_u) {
       f[patch_u] = (2.0f * boor_points[v][patch_u] + boor_points[v][(patch_u + 1) % m_patch_count_u]) / 3.0f;
       g[patch_u] = (boor_points[v][patch_u] + 2.0f * boor_points[v][(patch_u + 1) % m_patch_count_u]) / 3.0f;
-      e[patch_u] = (g[patch_u - 1] + f[patch_u]) / 2.0f;
     }
+
     e[0] = (g[m_patch_count_u - 1] + f[0]) / 2.0f;
+    for (std::size_t i = 1; i < m_patch_count_u; ++i) {
+      e[i] = (g[i - 1] + f[i]) / 2.0f;
+    }
 
     for (int patch_u = 0; patch_u < m_patch_count_u; ++patch_u) {
       intermediate_points[v].push_back(e[patch_u]);
@@ -427,24 +411,23 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_bez
     f.resize(m_patch_count_v);
     std::vector<glm::vec3> g;
     g.resize(m_patch_count_v);
+    glm::vec3 fLast = (intermediate_points[intermediate_points.size() - 2][u] +
+                       intermediate_points[intermediate_points.size() - 1][u]) /
+                      2.0f;
+    glm::vec3 gFirst = (intermediate_points[0][u] + intermediate_points[1][u]) / 2.0f;
 
-    f[0] = intermediate_points[1][u];
-    if (m_patch_count_v > 1) {
-      g[0] = (intermediate_points[1][u] + intermediate_points[2][u]) / 2.0f;
-      for (int patch_v = 1; patch_v < m_patch_count_v - 1; ++patch_v) {
-        f[patch_v] = (2.0f * intermediate_points[patch_v + 1][u] + intermediate_points[patch_v + 2][u]) / 3.0f;
-        g[patch_v] = (intermediate_points[patch_v + 1][u] + 2.0f * intermediate_points[patch_v + 2][u]) / 3.0f;
-      }
-      f[m_patch_count_v - 1] =
-          (intermediate_points[m_patch_count_v][u] + intermediate_points[m_patch_count_v + 1][u]) / 2.0f;
+    // f[0] = intermediate_points[0][u];
+    // g[0] = (intermediate_points[1][u] + intermediate_points[2][u]) / 2.0f;
+    for (int patch_v = 0; patch_v < m_patch_count_v; ++patch_v) {
+      f[patch_v] = (2.0f * intermediate_points[patch_v + 1][u] + intermediate_points[patch_v + 2][u]) / 3.0f;
+      g[patch_v] = (intermediate_points[patch_v + 1][u] + 2.0f * intermediate_points[patch_v + 2][u]) / 3.0f;
     }
-    g[m_patch_count_v - 1] = intermediate_points[m_patch_count_v + 1][u];
 
-    e[0] = intermediate_points[0][u];
+    e[0] = (gFirst + f[0]) / 2.0f;
     for (int patch_v = 1; patch_v < m_patch_count_v; ++patch_v) {
       e[patch_v] = (g[patch_v - 1] + f[patch_v]) / 2.0f;
     }
-    e[m_patch_count_v] = intermediate_points[m_patch_count_v + 2][u];
+    e[m_patch_count_v] = (g[m_patch_count_v - 1] + fLast) / 2.0f;
 
     for (int patch_v = 0; patch_v < m_patch_count_v; ++patch_v) {
       bezier_points[3 * patch_v][u] = e[patch_v];
@@ -478,23 +461,18 @@ BezierSurfaceComponent::SurfacePointsVector BezierSurfaceComponent::generate_bez
     f.resize(m_patch_count_v);
     std::vector<glm::vec3> g;
     g.resize(m_patch_count_v);
+    glm::vec3 gFirst = (boor_points[0][u] + boor_points[1][u]) / 2.0f;
 
-    if (m_patch_count_v > 1) {
-      f[0] = (2.0f * intermediate_points[0][u] + intermediate_points[1][u]) / 3.0f;
-      g[0] = (intermediate_points[0][u] + 2.0f * intermediate_points[1][u]) / 3.0f;
-    } else {
-      f[0] = 2.0f * intermediate_points[0][u] / 3.0f;
-      g[0] = intermediate_points[0][u] / 3.0f;
-    }
-
-    for (int patch_v = 1; patch_v < m_patch_count_v; ++patch_v) {
+    for (int patch_v = 0; patch_v < m_patch_count_v; ++patch_v) {
       f[patch_v] =
           (2.0f * intermediate_points[patch_v][u] + intermediate_points[(patch_v + 1) % m_patch_count_v][u]) / 3.0f;
       g[patch_v] =
           (intermediate_points[patch_v][u] + 2.0f * intermediate_points[(patch_v + 1) % m_patch_count_v][u]) / 3.0f;
-      e[patch_v] = (g[patch_v - 1] + f[patch_v]) / 2.0f;
     }
     e[0] = (g[m_patch_count_v - 1] + f[0]) / 2.0f;
+    for (int patch_v = 1; patch_v < m_patch_count_v; ++patch_v) {
+      e[patch_v] = (g[patch_v - 1] + f[patch_v]) / 2.0f;
+    }
 
     for (int patch_v = 0; patch_v < m_patch_count_v; ++patch_v) {
       bezier_points[3 * patch_v][u] = e[patch_v];
