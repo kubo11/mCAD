@@ -1,3 +1,6 @@
 [submodule "external/mge"]
 	path = external/mge
 	url = https://github.com/kubo11/mGE
+[submodule "external/json"]
+	path = external/json
+	url = https://github.com/nlohmann/json.git
