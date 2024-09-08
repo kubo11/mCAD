@@ -9,6 +9,7 @@ enum class BezierSurfaceWrapping { none, u, v };
 
 struct BezierSurfaceComponent {
   using SurfacePointsVector = std::vector<std::vector<glm::vec3>>;
+  using SurfacePatchesVector = std::vector<std::vector<std::vector<mge::EntityId>>>;
 
   BezierSurfaceComponent(unsigned int patch_count_u, unsigned int patch_count_v, BezierSurfaceWrapping wrapping,
                          mge::Entity& self, mge::Entity& grid);
@@ -17,6 +18,12 @@ struct BezierSurfaceComponent {
   bool get_grid_status() const;
   void set_grid_status(bool status);
   mge::Entity& get_grid() { return m_grid; }
+
+  BezierSurfaceWrapping get_wrapping() const { return m_wrapping; }
+  unsigned int get_patch_count_u() const { return m_patch_count_u; }
+  unsigned int get_patch_count_v() const { return m_patch_count_v; }
+
+  virtual SurfacePatchesVector get_patches() const = 0;
 
   unsigned int get_line_count() const;
   void set_line_count(unsigned int line_count);

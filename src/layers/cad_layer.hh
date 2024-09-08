@@ -14,16 +14,36 @@ class CadLayer : public mge::Layer {
   CadLayer(mge::Scene& scene, const glm::ivec2& window_size);
   ~CadLayer();
 
+  PREVENT_COPY(CadLayer);
+
   virtual void configure() override;
   virtual void update() override;
 
-  mge::Entity& get_mass_center() { return m_mass_center; }
+  mge::Entity& create_point(const glm::vec3& pos);
+  mge::Entity& create_torus(const glm::vec3& pos, float inner_radius, float outer_radius, unsigned int inner_density,
+                            unsigned int outer_density);
+  mge::Entity& create_bezier_curve_c0(const std::vector<mge::EntityId>& points);
+  mge::Entity& create_bezier_curve_c2(const std::vector<mge::EntityId>& points);
+  mge::Entity& create_bezier_curve_c2_interp(const std::vector<mge::EntityId>& points);
+  mge::Entity& create_bezier_surface_c0(const glm::vec3& pos, BezierSurfaceWrapping wrapping, unsigned int patches_u,
+                                        unsigned int patches_v, float size_u, float size_v);
+  mge::Entity& create_bezier_surface_c0(const std::vector<std::vector<mge::EntityId>>& points,
+                                        BezierSurfaceWrapping wrapping, unsigned int patches_u, unsigned int patches_v,
+                                        unsigned int line_count);
+  mge::Entity& create_bezier_surface_c2(const glm::vec3& pos, BezierSurfaceWrapping wrapping, unsigned int patches_u,
+                                        unsigned int patches_v, float size_u, float size_v);
+  mge::Entity& create_bezier_surface_c2(const std::vector<std::vector<mge::EntityId>>& points,
+                                        BezierSurfaceWrapping wrapping, unsigned int patches_u, unsigned int patches_v,
+                                        unsigned int line_count);
+
+  void create_cursor();
+  void create_mass_center();
 
  private:
   bool m_do_anaglyphs;
   mge::Scene& m_scene;
-  mge::Entity& m_cursor;
-  mge::Entity& m_mass_center;
+  std::reference_wrapper<mge::Entity> m_cursor;
+  std::reference_wrapper<mge::Entity> m_mass_center;
   glm::vec2 m_window_size;
   std::vector<mge::EntityId> m_to_be_destroyed;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_geometry_wireframe_pipeline = nullptr;

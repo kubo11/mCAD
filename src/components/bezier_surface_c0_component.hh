@@ -8,10 +8,14 @@
 struct BezierSurfaceC0Component : public BezierSurfaceComponent {
   BezierSurfaceC0Component(unsigned int patch_count_u, unsigned int patch_count_v, float size_u, float size_v,
                            BezierSurfaceWrapping wrapping, mge::Entity& self, mge::Entity& grid);
+  BezierSurfaceC0Component(std::vector<mge::EntityVector>& points, unsigned int patch_count_u,
+                           unsigned int patch_count_v, BezierSurfaceWrapping wrapping, unsigned int line_count,
+                           mge::Entity& self, mge::Entity& grid);
 
   static std::string get_new_name() { return "BezierSurfaceC0 " + std::to_string(s_new_id++); }
 
   virtual void update_surface(mge::Entity& entity) override;
+  virtual SurfacePatchesVector get_patches() const override;
 
  private:
   static unsigned int s_new_id;

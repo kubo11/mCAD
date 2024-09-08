@@ -122,6 +122,7 @@ class UILayer : public mge::Layer {
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);
   void show_anaglyph_panel();
+  void show_serialization_panel();
 
   bool on_added_entity(mge::AddedEntityEvent& event);
   bool on_deleted_entity(mge::DeletedEntityEvent& event);
@@ -131,6 +132,8 @@ class UILayer : public mge::Layer {
   bool on_mouse_scroll(mge::MouseScrollEvent& event);
 
   bool on_ui_selection_updated(UISelectionUpdateEvent& event);
+
+  bool on_announce_points_deserialization(AnnounceDeserializedPointsEvent& event);
 
   void send_camera_move_events(mge::MouseMovedEvent& event);
   void send_camera_zoom_event(mge::MouseScrollEvent& event);

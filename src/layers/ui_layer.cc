@@ -282,6 +282,7 @@ void UILayer::configure() {
   mge::AddEventListener(mge::MouseEvents::MouseMoved, UILayer::on_mouse_moved, this);
   mge::AddEventListener(mge::MouseEvents::MouseScroll, UILayer::on_mouse_scroll, this);
   AddEventListener(UIEvents::SelectionUpdate, UILayer::on_ui_selection_updated, this);
+  AddEventListener(SerializationEvents::AnnounceDeserializedPoints, UILayer::on_announce_points_deserialization, this);
 }
 
 void UILayer::update() {
@@ -322,6 +323,7 @@ void UILayer::update() {
       ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
       ImGui::EndTabItem();
       show_anaglyph_panel();
+      show_serialization_panel();
     }
     ImGui::EndTabBar();
   }
@@ -772,7 +774,7 @@ void UILayer::show_bezier_c2_curve_interp_panel(const mge::Entity& entity) {
 }
 
 void UILayer::show_bezier_c0_surface_panel(const mge::Entity& entity) {
-  static int line_count = 4;
+  static int line_count = entity.get_component<BezierSurfaceC0Component>().get_line_count();
   ImGui::Text("Line count");
   if (ImGui::InputInt("##line", &line_count, 1, 1)) {
     line_count = std::clamp(line_count, 1, 128);
@@ -800,7 +802,7 @@ void UILayer::show_bezier_c0_surface_panel(const mge::Entity& entity) {
 }
 
 void UILayer::show_bezier_c2_surface_panel(const mge::Entity& entity) {
-  static int line_count = 4;
+  static int line_count = entity.get_component<BezierSurfaceC2Component>().get_line_count();
   ImGui::Text("Line count");
   if (ImGui::InputInt("##line", &line_count, 1, 1)) {
     line_count = std::clamp(line_count, 1, 128);
@@ -1044,6 +1046,29 @@ void UILayer::show_anaglyph_panel() {
   }
 }
 
+void UILayer::show_serialization_panel() {
+  ImGui::Separator();
+  ImGui::Text("Save/Load");
+  static std::string save_path = "scene.json";
+  std::string tmp_path = save_path;
+  if (ImGui::InputText("##save_path", &tmp_path)) {
+    save_path = tmp_path;
+  }
+  if (ImGui::Button("Save", ImVec2(120, 0))) {
+    SerializeSceneEvent event(save_path);
+    SendEvent(event);
+  }
+  static std::string load_path = "scene.json";
+  tmp_path = load_path;
+  if (ImGui::InputText("##load_path", &tmp_path)) {
+    load_path = tmp_path;
+  }
+  if (ImGui::Button("Load", ImVec2(120, 0))) {
+    DeserializeSceneEvent event(load_path);
+    SendEvent(event);
+  }
+}
+
 bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {
   mge::QueryEntityByIdEvent query_event(event.id);
   SendEngineEvent(query_event);
@@ -1204,6 +1229,13 @@ bool UILayer::on_ui_selection_updated(UISelectionUpdateEvent& event) {
     m_selection_manager.select(event.id, event.is_parent);
   } else {
     m_selection_manager.unselect(event.id);
+  }
+  return true;
+}
+
+bool UILayer::on_announce_points_deserialization(AnnounceDeserializedPointsEvent& event) {
+  for (auto& point_data : event.data) {
+    m_selection_manager.add_entity(point_data.first, point_data.second);
   }
   return true;
 }
