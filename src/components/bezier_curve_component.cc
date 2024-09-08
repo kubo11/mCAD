@@ -3,7 +3,7 @@
 
 BezierCurveComponent::BezierCurveComponent(BezierCurveBase base, const mge::EntityVector& points, mge::Entity& self,
                                            mge::Entity& polygon)
-    : m_base(base), m_self(self), m_polygon(polygon) {
+    : m_base(base), m_self(self), m_polygon(polygon), m_block_updates(false), m_blocked_updates_count(0) {
   for (auto& point : points) {
     m_control_points.push_back({0, point});
   }
@@ -13,7 +13,7 @@ BezierCurveComponent::~BezierCurveComponent() {
   mge::DeleteEntityEvent event(m_polygon.get_id());
   SendEngineEvent(event);
   for (auto& [handle, point] : m_control_points) {
-    point.get().unregister_on_update<mge::TransformComponent>(handle);
+    if (point.get().is_valid()) point.get().unregister_on_update<mge::TransformComponent>(handle);
   }
 }
 

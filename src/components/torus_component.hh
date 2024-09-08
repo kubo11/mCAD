@@ -49,9 +49,6 @@ struct TorusComponent {
   template <mge::RenderMode mode>
   std::vector<unsigned int> generate_topology() const;
 
-  void on_construct(mge::Entity& entity);
-  void on_update(mge::Entity& entity);
-
  private:
   static unsigned int s_new_id;
   static const fs::path s_default_shader_path;

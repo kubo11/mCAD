@@ -1,6 +1,6 @@
 #include "grid_layer.hh"
 
-GridLayer::GridLayer(mge::Scene& scene) : m_scene(scene) {}
+GridLayer::GridLayer(mge::Scene& scene) : m_scene(scene), m_do_anaglyphs(false) {}
 
 void GridLayer::configure() {
   AddEventListener(AnaglyphEvents::UpdateState, GridLayer::on_anaglyph_update_state, this);

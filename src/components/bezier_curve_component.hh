@@ -15,6 +15,10 @@ struct BezierCurveComponent {
   void set_polygon_status(bool status);
   mge::Entity& get_polygon() { return m_polygon; }
 
+  const std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>>& get_control_points() const {
+    return m_control_points;
+  }
+
   virtual void add_point(mge::Entity& point);
   virtual void remove_point(mge::Entity& point);
 
