@@ -46,13 +46,12 @@ void CadLayer::configure() {
       });
   m_geometry_wireframe_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "cursor"))
-      .add_uniform_update<glm::mat4>("projection_view",
-                                     [&scene = m_scene]() {
-                                       auto& camera = scene.get_current_camera();
-                                       return camera.get_projection_matrix() * camera.get_view_matrix();
-                                     })
-      .add_uniform_update<glm::vec2>("window_size", [&window_size = m_window_size]() { return window_size; });
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
+        return camera.get_projection_matrix() * camera.get_view_matrix();
+      });
   m_cursor_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::POINT));
+  m_cursor_pipeline->dynamic_uniform_update("far_plane", m_scene.get_current_camera().get_far_plane());
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier"))
       .add_uniform_update<glm::mat4>("projection_view",
                                      [&scene = m_scene]() {
@@ -368,7 +367,7 @@ void CadLayer::update() {
 glm::vec3 CadLayer::unproject_point(glm::vec2 pos) const {
   auto& camera = m_scene.get_current_camera();
   auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
-  glm::vec4 unprojected_point = glm::inverse(proj_view) * glm::vec4(pos, 0.0f, 1.0f);
+  glm::vec4 unprojected_point = glm::inverse(proj_view) * glm::vec4(pos, 0.995f, 1.0f);
   return glm::vec3(unprojected_point) / unprojected_point.w;
 }
 
