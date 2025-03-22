@@ -33,11 +33,11 @@ vec4 grid(vec3 pos, float scale) {
   float minimumz = min(derivative.y, 1);
   float minimumx = min(derivative.x, 1);
   vec4 color = vec4(0.2, 0.2, 0.2, 1.0 - min(line, 1.0));
-  if (color.a < 0.01) discard;
-  //  z axis
-  if (pos.x > -2 * minimumx && pos.x < 2 * minimumx) color.z = 1.0;
+
+  // z axis
+  if (pos.x > -scale * minimumx && pos.x < scale * minimumx) color.z = 1.0;
   // x axis
-  if (pos.z > -2 * minimumz && pos.z < 2 * minimumz) color.x = 1.0;
+  if (pos.z > -scale * minimumz && pos.z < scale * minimumz) color.x = 1.0;
 
   if (anaglyph_state == 1)
     color.xyz = vec3(1.0, 0.0, 0.0);
@@ -52,9 +52,12 @@ void main() {
   vec3 pos = nearPoint + t * (farPoint - nearPoint);
   gl_FragDepth =
       min((gl_DepthRange.diff * depth(pos) + gl_DepthRange.near + gl_DepthRange.far) / 2, gl_DepthRange.far - EPS);
+  vec4 primary_grid = grid(pos, 1.0);
+  vec4 secondary_grid = grid(pos, 0.1);
+  secondary_grid.a *= 0.5;
+  outColor = max(primary_grid, secondary_grid) * float(t > 0.0);
   float ld = linear_depth(pos);
   if (!(ld > 0.001 && ld < 2.0)) ld = 2.0;
   float fading = max(0, (0.5 - ld));
-  outColor = (grid(pos, 1.0)) * float(t > 0.0);
   outColor.a *= fading;
 }

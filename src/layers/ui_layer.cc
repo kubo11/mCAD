@@ -290,9 +290,6 @@ void UILayer::update() {
 
   mge::UIManager::start_frame();
 
-  bool dwnd = false;
-  ImGui::ShowDemoWindow(&dwnd);
-
   auto size = ImGui::GetMainViewport()->Size;
 
   ImGui::SetNextWindowSize({std::min(size.x * 0.25f, 250.0f), size.y});
