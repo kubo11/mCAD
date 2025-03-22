@@ -16,6 +16,7 @@ CadLayer::CadLayer(mge::Scene& scene, const glm::ivec2& window_size)
     : m_scene(scene),
       m_cursor(m_scene.create_entity()),
       m_mass_center(m_scene.create_entity()),
+      m_vertical_line(m_scene.create_entity()),
       m_window_size(window_size),
       m_do_anaglyphs(false) {}
 
@@ -45,13 +46,19 @@ void CadLayer::configure() {
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_geometry_wireframe_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
-  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "cursor"))
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "ui" / "cursor"))
       .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
         auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_cursor_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::POINT));
   m_cursor_pipeline->dynamic_uniform_update("far_plane", m_scene.get_current_camera().get_far_plane());
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "ui" / "vertical_line"))
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
+        return camera.get_projection_matrix() * camera.get_view_matrix();
+      });
+  m_vertical_line_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::POINT));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier"))
       .add_uniform_update<glm::mat4>("projection_view",
                                      [&scene = m_scene]() {
@@ -213,6 +220,9 @@ void CadLayer::configure() {
   // Mass center
   create_mass_center();
 
+  // Vertial line
+  create_vertical_line();
+
   // Anaglyph events
   AddEventListener(AnaglyphEvents::UpdateState, CadLayer::on_anaglyph_update_state, this);
   // Camera events
@@ -314,6 +324,8 @@ void CadLayer::update() {
     m_point_pipeline->run();
     m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 1);
     m_cursor_pipeline->run();
+    m_vertical_line_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_vertical_line_pipeline->run();
     glClear(GL_DEPTH_BUFFER_BIT);
     // right eye
     anaglyph_camera.set_eye(mge::AnaglyphCamera::Eye::Right);
@@ -338,6 +350,8 @@ void CadLayer::update() {
     m_point_pipeline->run();
     m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 2);
     m_cursor_pipeline->run();
+    m_vertical_line_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_vertical_line_pipeline->run();
   } else {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     m_geometry_wireframe_pipeline->dynamic_uniform_update("anaglyph_state", 0);
@@ -361,6 +375,8 @@ void CadLayer::update() {
     m_point_pipeline->run();
     m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 0);
     m_cursor_pipeline->run();
+    m_vertical_line_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_vertical_line_pipeline->run();
   }
 }
 
@@ -1481,4 +1497,22 @@ void CadLayer::create_mass_center() {
       .disable();
   m_mass_center.get().add_component<ColorComponent>(glm::vec3{1.0f, 0.0f, 0.0f});
   m_mass_center.get().add_component<MassCenterComponent>();
+}
+
+void CadLayer::create_vertical_line() {
+  m_vertical_line = m_scene.create_entity();
+  auto vertical_line_vertex = std::vector<GeometryVertex>{{{0.0f, 0.0f, 0.0f}}};
+  auto vertical_line_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  vertical_line_vertex_buffer->bind();
+  vertical_line_vertex_buffer->copy(vertical_line_vertex);
+  vertical_line_vertex_buffer->unbind();
+  auto vertical_line_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(vertical_line_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  m_vertical_line.get().add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_vertical_line_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(vertical_line_vertex_array),
+      [&cursor = m_cursor.get()](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "beg_pos", [&cursor]() { return cursor.get_component<mge::TransformComponent>().get_position(); });
+      });
 }

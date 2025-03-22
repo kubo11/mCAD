@@ -38,11 +38,13 @@ class CadLayer : public mge::Layer {
 
   void create_cursor();
   void create_mass_center();
+  void create_vertical_line();
 
  private:
   bool m_do_anaglyphs;
   mge::Scene& m_scene;
   std::reference_wrapper<mge::Entity> m_cursor;
+  std::reference_wrapper<mge::Entity> m_vertical_line;
   std::reference_wrapper<mge::Entity> m_mass_center;
   glm::vec2 m_window_size;
   std::vector<mge::EntityId> m_to_be_destroyed;
@@ -55,6 +57,7 @@ class CadLayer : public mge::Layer {
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_polygon_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_grid_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_cursor_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_vertical_line_pipeline = nullptr;
 
   mge::OptionalEntity get_closest_selectible_entity(glm::vec2 screen_space_position) const;
   glm::vec3 unproject_point(glm::vec2 screen_space_position) const;
