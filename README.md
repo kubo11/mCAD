@@ -41,3 +41,4 @@ If you want to speed up the buliding process add `-jN` flag to the last command,
 
 This project has been created with use of some other open-source dependencies:
 - [mge](https://github.com/kubo11/mGE)
+- [json](https://github.com/nlohmann/json.git)
