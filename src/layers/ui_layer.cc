@@ -290,7 +290,7 @@ void UILayer::update() {
 
   mge::UIManager::start_frame();
 
-  bool dwnd = true;
+  bool dwnd = false;
   ImGui::ShowDemoWindow(&dwnd);
 
   auto size = ImGui::GetMainViewport()->Size;

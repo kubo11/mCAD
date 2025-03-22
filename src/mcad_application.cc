@@ -5,12 +5,10 @@
 
 MCadApplication::MCadApplication() {
   m_event_manager = EventManager::create(*m_timer);
-  m_scene->get_camera(0).set_velocity(10.0f);
   auto anaglyph_camera = std::make_unique<mge::AnaglyphCamera>(glm::vec3{3.0f, 3.0f, 0.0f}, 180, -45, 45,
                                                                m_scene->get_current_camera().get_aspect_ratio(), 0.01f,
                                                                100.0f, 0.06f, 1.0f, 1.0f);
   m_scene->add_camera(std::move(anaglyph_camera));
-  m_scene->get_camera(1).set_velocity(10.0f);
 
   // Anaglyph events
   AddEventListener(AnaglyphEvents::UpdateState, MCadApplication::on_anaglyph_update_state, this);
