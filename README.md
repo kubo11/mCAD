@@ -1,4 +1,11 @@
 # mCAD
+
+
+https://github.com/user-attachments/assets/057933f4-7147-44a4-93f3-b256a99cdf1a
+
+![mcad1](https://github.com/user-attachments/assets/adf83454-3d7b-420c-98e2-6062052da41c)
+![mcad2](https://github.com/user-attachments/assets/ae265243-2966-4e44-afc1-4249e2d1125b)
+
 Minimal CAD.
 
 ## Requirements
