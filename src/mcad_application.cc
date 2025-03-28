@@ -3,6 +3,8 @@
 #include "layers/grid_layer.hh"
 #include "layers/ui_layer.hh"
 
+#include <nfd.hpp>
+
 MCadApplication::MCadApplication() {
   m_event_manager = EventManager::create(*m_timer);
   auto anaglyph_camera = std::make_unique<mge::AnaglyphCamera>(glm::vec3{3.0f, 3.0f, 0.0f}, 180, -45, 45,
@@ -32,12 +34,19 @@ MCadApplication::MCadApplication() {
   AddEventListener(SerializationEvents::SerializeScene, MCadApplication::on_serialize_scene, this);
   AddEventListener(SerializationEvents::DeserializeScene, MCadApplication::on_deserialize_scene, this);
 
+  // Init NFD
+  MGE_ASSERT(NFD::Init() == NFD_OKAY, "{}", NFD::GetError());
+
   // Layers
   auto window_dims = glm::ivec2{m_main_window->get_width(), m_main_window->get_height()};
   auto cad_layer = std::make_unique<CadLayer>(*m_scene, window_dims);
   push_layer(std::move(cad_layer));
   push_layer(std::move(std::make_unique<GridLayer>(*m_scene)));
   push_layer(std::move(std::make_unique<UILayer>()));
+}
+
+MCadApplication::~MCadApplication() {
+  NFD::Quit();
 }
 
 bool MCadApplication::on_anaglyph_update_state(AnaglyphUpdateStateEvent& event) {

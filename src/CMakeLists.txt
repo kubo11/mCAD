@@ -4,7 +4,7 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE mge nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PRIVATE mge nlohmann_json::nlohmann_json nfd::nfd)
 
 if (WIN32)
     set(BIN_NAME ${PROJECT_NAME}.exe)

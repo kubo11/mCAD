@@ -1,4 +1,8 @@
 #include "ui_layer.hh"
+
+#include <nfd.hpp>
+#include <nfd_glfw3.h>
+
 #include "../components/bezier_curve_c0_component.hh"
 #include "../components/bezier_curve_c2_component.hh"
 #include "../components/bezier_curve_c2_interp_component.hh"
@@ -1047,24 +1051,31 @@ void UILayer::show_anaglyph_panel() {
 
 void UILayer::show_serialization_panel() {
   ImGui::Separator();
-  ImGui::Text("Save/Load");
-  static std::string save_path = "scene.json";
-  std::string tmp_path = save_path;
-  if (ImGui::InputText("##save_path", &tmp_path)) {
-    save_path = tmp_path;
+
+  if (ImGui::Button("Save")) {
+    nfdu8char_t *save_path;
+    nfdu8filteritem_t filters[1] = { { "Scene JSON", "json" } };
+    auto result = NFD::SaveDialog(save_path, filters, 1, fs::current_path().c_str());
+    if (result == NFD_OKAY) {
+      SerializeSceneEvent event{fs::path(save_path)};
+      SendEvent(event);
+      NFD::FreePath(save_path);
+    } else if (result == NFD_ERROR) {
+      MGE_ERROR("Could not load scene");
+    }
   }
-  if (ImGui::Button("Save", ImVec2(120, 0))) {
-    SerializeSceneEvent event(save_path);
-    SendEvent(event);
-  }
-  static std::string load_path = "scene.json";
-  tmp_path = load_path;
-  if (ImGui::InputText("##load_path", &tmp_path)) {
-    load_path = tmp_path;
-  }
-  if (ImGui::Button("Load", ImVec2(120, 0))) {
-    DeserializeSceneEvent event(load_path);
-    SendEvent(event);
+  ImGui::SameLine();
+  if (ImGui::Button("Load")) {
+    nfdu8char_t *load_path;
+    nfdu8filteritem_t filters[1] = { { "Scene JSON", "json" } };
+    auto result = NFD::OpenDialog(load_path, filters, 1, fs::current_path().c_str());
+    if (result == NFD_OKAY) {
+      DeserializeSceneEvent event{fs::path(load_path)};
+      SendEvent(event);
+      NFD::FreePath(load_path);
+    } else if (result == NFD_ERROR) {
+      MGE_ERROR("Could not load scene");
+    }
   }
 }
 

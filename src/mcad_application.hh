@@ -9,6 +9,7 @@
 class MCadApplication : public mge::Application {
  public:
   MCadApplication();
+  ~MCadApplication();
 
  protected:
   std::shared_ptr<EventManager> m_event_manager = nullptr;
