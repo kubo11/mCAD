@@ -14,7 +14,17 @@ BezierCurveC2InterpComponent::BezierCurveC2InterpComponent(const mge::EntityVect
 std::vector<BezierCurveC2InterpVertex> BezierCurveC2InterpComponent::generate_geometry() const {
   std::vector<BezierCurveC2InterpVertex> segments;
   if (m_control_points.size() >= 3) {
+    std::vector<glm::vec3> control_points_positions;
     std::size_t n = m_control_points.size() - 1;
+    for (int i = 0; i < n; ++i) {
+      auto diff = glm::length(m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position() - 
+        m_control_points[i+1].second.get().get_component<mge::TransformComponent>().get_position());
+      if (diff < glm::epsilon<float>()) continue; 
+      control_points_positions.push_back(m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position());
+    }
+    control_points_positions.push_back(m_control_points.back().second.get().get_component<mge::TransformComponent>().get_position());
+    n = control_points_positions.size() - 1;
+    
     std::vector<float> dt(n);
     std::vector<glm::vec3> a(n);
     std::vector<glm::vec3> b(n);
@@ -27,9 +37,8 @@ std::vector<BezierCurveC2InterpVertex> BezierCurveC2InterpComponent::generate_ge
     std::vector<glm::vec3> Rp(n);
 
     for (std::size_t i = 0; i < n; ++i) {
-      dt[i] = glm::length(m_control_points[i + 1].second.get().get_component<mge::TransformComponent>().get_position() -
-                          m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position());
-      a[i] = m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position();
+      dt[i] = glm::length(control_points_positions[i + 1] - control_points_positions[i]);
+      a[i] = control_points_positions[i];
     }
 
     for (std::size_t i = 2; i < n; ++i) {
@@ -42,13 +51,8 @@ std::vector<BezierCurveC2InterpVertex> BezierCurveC2InterpComponent::generate_ge
 
     for (std::size_t i = 1; i < n; ++i) {
       R[i] = 3.0f *
-             ((m_control_points[i + 1].second.get().get_component<mge::TransformComponent>().get_position() -
-               m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position()) /
-                  dt[i] -
-              (m_control_points[i].second.get().get_component<mge::TransformComponent>().get_position() -
-               m_control_points[i - 1].second.get().get_component<mge::TransformComponent>().get_position()) /
-                  dt[i - 1]) /
-             (dt[i - 1] + dt[i]);
+             ((control_points_positions[i + 1] - control_points_positions[i]) / dt[i] -
+              (control_points_positions[i] - control_points_positions[i - 1]) / dt[i - 1]) / (dt[i - 1] + dt[i]);
     }
 
     betap[1] = beta[1] / 2;
@@ -75,14 +79,10 @@ std::vector<BezierCurveC2InterpVertex> BezierCurveC2InterpComponent::generate_ge
     for (std::size_t i = 0; i < n - 1; ++i) {
       b[i] = (a[i + 1] - a[i]) / dt[i] - (c[i] + d[i] * dt[i]) * dt[i];
     }
-    b[n - 1] = (m_control_points[n].second.get().get_component<mge::TransformComponent>().get_position() - a[n - 1]) /
-                   dt[n - 1] -
-               (c[n - 1] + d[n - 1] * dt[n - 1]) * dt[n - 1];
+    b[n - 1] = (control_points_positions[n] - a[n - 1]) / dt[n - 1] - (c[n - 1] + d[n - 1] * dt[n - 1]) * dt[n - 1];
 
     for (std::size_t i = 0; i < n; ++i) {
-      segments.push_back({a[i], b[i], c[i], d[i],
-                          m_control_points[i + 1].second.get().get_component<mge::TransformComponent>().get_position(),
-                          dt[i]});
+      segments.push_back({a[i], b[i], c[i], d[i], control_points_positions[i + 1], dt[i]});
     }
   }
   return segments;

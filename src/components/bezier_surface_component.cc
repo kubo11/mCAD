@@ -8,7 +8,9 @@ BezierSurfaceComponent::BezierSurfaceComponent(unsigned int patch_count_u, unsig
       m_wrapping(wrapping),
       m_self(self),
       m_grid(grid),
-      m_line_count(4) {}
+      m_line_count(4),
+      m_block_updates(false),
+      m_blocked_updates_count(0) {}
 
 BezierSurfaceComponent::~BezierSurfaceComponent() {
   mge::DeleteEntityEvent event(m_grid.get_id());
