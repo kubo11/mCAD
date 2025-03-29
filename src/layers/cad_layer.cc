@@ -272,6 +272,7 @@ void CadLayer::configure() {
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
   AddEventListener(TransformEvents::TranslateToCursor, CadLayer::on_translate_to_cursor, this);
+  AddEventListener(TransformEvents::RelativeTranslate, CadLayer::on_relative_translate, this);
   AddEventListener(TransformEvents::RelativeScale, CadLayer::on_relative_scale, this);
   AddEventListener(TransformEvents::RelativeRotate, CadLayer::on_relative_rotate, this);
   AddEventListener(TransformEvents::Translate, CadLayer::on_translate, this);
@@ -792,12 +793,26 @@ bool CadLayer::on_cursor_move(CursorMoveEvent& event) {
 
 bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
   glm::vec3 center = m_mass_center.get().get_component<MassCenterComponent>().get_position();
-  glm::vec3 destination = m_cursor.get().get_component<mge::TransformComponent>().get_position();
+  glm::vec3 cursor = m_cursor.get().get_component<mge::TransformComponent>().get_position();
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    relative_translate(entity, center, destination);
+    relative_translate(entity, center, cursor);
+  }
+
+  update_mass_center();
+
+  return true;
+}
+
+bool CadLayer::on_relative_translate(RelativeTranslateEvent& event) {
+  glm::vec3 center = m_mass_center.get().get_component<MassCenterComponent>().get_position();
+
+  for (auto id : event.ids) {
+    auto& entity = m_scene.get_entity(id);
+    if (!entity.has_component<mge::TransformComponent>()) continue;
+    relative_translate(entity, center, event.translation);
   }
 
   update_mass_center();
@@ -807,25 +822,11 @@ bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
 
 bool CadLayer::on_relative_scale(RelativeScaleEvent& event) {
   glm::vec3 center = m_mass_center.get().get_component<MassCenterComponent>().get_position();
-  float scaling_factor = glm::distance(center, unproject_point(event.scaling_end)) /
-                         glm::distance(center, unproject_point(event.scaling_begin));
-
-  auto alter_scaling = [scaling_factor](mge::Entity& entity) {
-    if (!entity.has_component<TorusComponent>() && !entity.has_component<BezierSurfaceC0Component>())
-      return glm::vec3{scaling_factor, scaling_factor, scaling_factor};
-    float new_scaling_factor;
-    if (scaling_factor > 1.0f) {
-      new_scaling_factor = 1.0f + (scaling_factor - 1.0f) * 1000.0f;
-    } else {
-      new_scaling_factor = 1.0f - (1.0f - scaling_factor) * 1000.0f;
-    }
-    return glm::vec3{new_scaling_factor, new_scaling_factor, new_scaling_factor};
-  };
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    relative_scale(entity, center, alter_scaling(entity));
+    relative_scale(entity, center, event.scaling);
   }
 
   update_mass_center();
@@ -835,17 +836,11 @@ bool CadLayer::on_relative_scale(RelativeScaleEvent& event) {
 
 bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
   glm::vec3 center = m_mass_center.get().get_component<MassCenterComponent>().get_position();
-  auto& camera = m_scene.get_current_camera();
-  auto proj_view = camera.get_projection_matrix() * camera.get_view_matrix();
-  glm::vec2 center_screen_space = proj_view * glm::vec4(center, 1.0f);
-  float angle = glm::asin(glm::cross(glm::vec3(glm::normalize(event.rotation_begin - center_screen_space), 0.0f),
-                                     glm::vec3(glm::normalize(event.rotation_end - center_screen_space), 0.0f)))
-                    .z;
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    relative_rotate(entity, center, glm::angleAxis(angle, event.axis));
+    relative_rotate(entity, center, event.quat);
   }
 
   update_mass_center();

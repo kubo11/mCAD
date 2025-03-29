@@ -42,7 +42,7 @@ MCadApplication::MCadApplication() {
   auto cad_layer = std::make_unique<CadLayer>(*m_scene, window_dims);
   push_layer(std::move(cad_layer));
   push_layer(std::move(std::make_unique<GridLayer>(*m_scene)));
-  push_layer(std::move(std::make_unique<UILayer>()));
+  push_layer(std::move(std::make_unique<UILayer>(*m_scene)));
 }
 
 MCadApplication::~MCadApplication() {

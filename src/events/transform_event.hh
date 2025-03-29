@@ -3,14 +3,23 @@
 
 #include "mge.hh"
 
-enum class TransformEvents { TranslateToCursor, Translate, RelativeScale, Scale, RelativeRotate, Rotate };
+enum class TransformEvents { TranslateToCursor, RelativeTranslate, Translate, RelativeScale, Scale, RelativeRotate, Rotate };
 
 class TranslateToCursorEvent : public mge::Event<TransformEvents> {
- public:
+  public:
   TranslateToCursorEvent(const std::vector<mge::EntityId>& ids)
-      : mge::Event<TransformEvents>(TransformEvents::TranslateToCursor, "TranslateToCursorEvent"), ids(ids) {}
+       : mge::Event<TransformEvents>(TransformEvents::TranslateToCursor, "TranslateToCursorEvent"), ids(ids) {}
+ 
+   std::vector<mge::EntityId> ids;
+ };
+
+class RelativeTranslateEvent : public mge::Event<TransformEvents> {
+ public:
+ RelativeTranslateEvent(const std::vector<mge::EntityId>& ids, const glm::vec3& translation)
+      : mge::Event<TransformEvents>(TransformEvents::RelativeTranslate, "RelativeTranslateEvent"), ids(ids), translation(translation) {}
 
   std::vector<mge::EntityId> ids;
+  glm::vec3 translation;
 };
 
 class TranslateEvent : public mge::Event<TransformEvents> {
@@ -24,15 +33,13 @@ class TranslateEvent : public mge::Event<TransformEvents> {
 
 class RelativeScaleEvent : public mge::Event<TransformEvents> {
  public:
-  RelativeScaleEvent(const std::vector<mge::EntityId>& ids, glm::vec2 scaling_begin, glm::vec2 scaling_end)
+  RelativeScaleEvent(const std::vector<mge::EntityId>& ids, const glm::vec3& scaling)
       : mge::Event<TransformEvents>(TransformEvents::RelativeScale, "RelativeScaleEvent"),
         ids(ids),
-        scaling_begin(scaling_begin),
-        scaling_end(scaling_end) {}
+        scaling(scaling) {}
 
   std::vector<mge::EntityId> ids;
-  glm::vec2 scaling_begin;
-  glm::vec2 scaling_end;
+  glm::vec3 scaling;
 };
 
 class ScaleEvent : public mge::Event<TransformEvents> {
@@ -46,18 +53,13 @@ class ScaleEvent : public mge::Event<TransformEvents> {
 
 class RelativeRotateEvent : public mge::Event<TransformEvents> {
  public:
-  RelativeRotateEvent(const std::vector<mge::EntityId>& ids, glm::vec2 rotation_begin, glm::vec2 rotation_end,
-                      glm::vec3 axis)
+  RelativeRotateEvent(const std::vector<mge::EntityId>& ids, const glm::quat& quat)
       : mge::Event<TransformEvents>(TransformEvents::RelativeRotate, "RelativeRotateEvent"),
         ids(ids),
-        rotation_begin(rotation_begin),
-        rotation_end(rotation_end),
-        axis(axis) {}
+        quat(quat) {}
 
   std::vector<mge::EntityId> ids;
-  glm::vec2 rotation_begin;
-  glm::vec2 rotation_end;
-  glm::vec3 axis;
+  glm::quat quat;
 };
 
 class RotateEvent : public mge::Event<TransformEvents> {

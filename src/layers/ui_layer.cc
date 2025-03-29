@@ -9,6 +9,7 @@
 #include "../components/bezier_surface_c0_component.hh"
 #include "../components/bezier_surface_c2_component.hh"
 #include "../components/selectible_component.hh"
+#include "../components/mass_center_component.hh"
 #include "../events/events.hh"
 #include "../input_state.hh"
 
@@ -52,12 +53,6 @@ std::string ToolManager::get_name(ToolManager::Type type) {
       return "Select";
     case ToolManager::Type::Delete:
       return "Delete";
-    case ToolManager::Type::Move:
-      return "Move";
-    case ToolManager::Type::Scale:
-      return "Scale";
-    case ToolManager::Type::Rotate:
-      return "Rotate";
     case ToolManager::Type::AddBezierPoint:
       return "AddBezierPoint";
     case ToolManager::Type::RemoveBezierPoint:
@@ -277,7 +272,7 @@ void SelectionManager::validate_selected() {
   }
 }
 
-UILayer::UILayer() : m_tool_manager(), m_disable_tools_combo(false), m_rotation_axis(), m_selection_manager() {}
+UILayer::UILayer(mge::Scene& scene) : m_tool_manager(), m_disable_tools_combo(false), m_rotation_axis(), m_selection_manager(), m_scene(scene) {}
 
 void UILayer::configure() {
   mge::AddEventListener(mge::EntityEvents::Added, UILayer::on_added_entity, this);
@@ -295,6 +290,35 @@ void UILayer::update() {
   mge::UIManager::start_frame();
 
   auto size = ImGui::GetMainViewport()->Size;
+
+  ImGuizmo::SetOrthographic(false);
+  ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
+  ImGuizmo::SetRect(0, 0, size.x, size.y);
+  if (m_selection_manager.get_selected_count() > 0 &&  m_tool_manager.get_type() == ToolManager::Type::Select) {
+    glm::mat4 model;
+    m_scene.foreach<>(entt::get<MassCenterComponent>, entt::exclude<>, [&](mge::Entity& entity) {
+      model = glm::translate(glm::mat4(1.0f), entity.get_component<MassCenterComponent>().get_position());
+    });
+    if (ImGuizmo::Manipulate(glm::value_ptr(m_scene.get_current_camera().get_view_matrix()), glm::value_ptr(m_scene.get_current_camera().get_projection_matrix()), 
+                              m_gizmo_operation, m_gizmo_mode, glm::value_ptr(model))) {
+      if (m_gizmo_operation == ImGuizmo::OPERATION::TRANSLATE) {
+        glm::vec3 translation = glm::vec3{model[3][0], model[3][1], model[3][2]};
+        RelativeTranslateEvent event{m_selection_manager.get_selected_ids(), translation};
+        SendEvent(event);
+      }
+      else if (m_gizmo_operation == ImGuizmo::OPERATION::ROTATE) {
+        auto quat = glm::quat_cast(model);
+        RelativeRotateEvent event(m_selection_manager.get_selected_ids(), quat);
+        SendEvent(event);
+      }
+      else if (m_gizmo_operation == ImGuizmo::OPERATION::SCALE) {
+        glm::vec3 scaling = glm::vec3{model[0][0], model[1][1], model[2][2]};
+        RelativeScaleEvent event(m_selection_manager.get_selected_ids(), scaling);
+        SendEvent(event);
+      }
+    }
+  }
+
 
   ImGui::SetNextWindowSize({std::min(size.x * 0.25f, 250.0f), size.y});
   ImGui::SetNextWindowPos({std::max(size.x * 0.75f, size.x - 250.f), 0});
@@ -834,7 +858,7 @@ void UILayer::show_bezier_c2_surface_panel(const mge::Entity& entity) {
 
 void UILayer::show_tools_panel() {
   using Tool = ToolManager::Type;
-  static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete, Tool::Move, Tool::Scale, Tool::Rotate};
+  static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete};
   std::string selected_value = ToolManager::get_name(m_tool_manager.get_type());
   ImGui::BeginDisabled(m_disable_tools_combo);
   if (ImGui::BeginCombo("##tools", selected_value.c_str())) {
@@ -850,22 +874,26 @@ void UILayer::show_tools_panel() {
   }
   ImGui::EndDisabled();
 
-  if (m_tool_manager.get_type() == ToolManager::Type::Rotate) {
-    for (auto& axis_type : std::vector{RotationAxis::Type::X, RotationAxis::Type::Y, RotationAxis::Type::Z}) {
-      if (m_rotation_axis.get_type() == axis_type) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0, 1.0, 0.0, 1.0));
-        if (ImGui::Button(RotationAxis::get_name(axis_type).c_str())) {
-          m_rotation_axis.set_type(axis_type);
-        }
-        ImGui::PopStyleColor();
-      } else {
-        if (ImGui::Button(RotationAxis::get_name(axis_type).c_str())) {
-          m_rotation_axis.set_type(axis_type);
-        }
-      }
-      ImGui::SameLine();
-    }
-    ImGui::Text(" ");
+  static int gizmo_operation = 0;
+  ImGui::Text("Gizmo operation");
+  ImGui::RadioButton("translate", &gizmo_operation, 0);
+  ImGui::SameLine();
+  ImGui::RadioButton("rotate", &gizmo_operation, 1);
+  ImGui::SameLine();
+  ImGui::RadioButton("scale", &gizmo_operation, 2);
+  if (gizmo_operation == 0) {
+    m_gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+  }
+  else if (gizmo_operation == 1) {
+    m_gizmo_operation = ImGuizmo::OPERATION::ROTATE;
+  }
+  else if (gizmo_operation == 2) {
+    m_gizmo_operation = ImGuizmo::OPERATION::SCALE;
+  }
+
+  if (ImGui::Button("translate to cursor")) {
+    TranslateToCursorEvent event(m_selection_manager.get_selected_ids());
+    SendEvent(event);
   }
 
   ImGui::Text("add object:");
@@ -891,7 +919,7 @@ void UILayer::show_tools_panel() {
 }
 
 void UILayer::show_entities_list_panel() {
-  ImGui::BeginChild("EntitiesList", ImVec2(ImGui::GetContentRegionAvail().x, 150), ImGuiChildFlags_None,
+  ImGui::BeginChild("EntitiesList", ImVec2(ImGui::GetContentRegionAvail().x, 150), ImGuiWindowFlags_None,
                     ImGuiWindowFlags_HorizontalScrollbar);
   for (auto id : m_selection_manager.get_all_entities_ids()) {
     if (ImGui::Selectable(m_selection_manager.get_tag(id).c_str(), m_selection_manager.is_selected(id))) {
@@ -1126,33 +1154,9 @@ bool UILayer::on_mouse_moved(mge::MouseMovedEvent& event) {
   if (window.is_key_pressed(mge::KeyboardKey::LeftControl)) {
     CursorMoveEvent cursor_event(event.end_position);
     SendEvent(cursor_event);
-    if (m_tool_manager.get_type() != ToolManager::Type::Move) return true;
+    return true;
   }
 
-  switch (m_tool_manager.get_type()) {
-    case ToolManager::Type::Scale:
-      if (window.is_mouse_pressed(mge::MouseButton::Left)) {
-        RelativeScaleEvent scale_event(m_selection_manager.get_selected_ids(), event.start_position,
-                                       event.end_position);
-        SendEvent(scale_event);
-      }
-      break;
-    case ToolManager::Type::Rotate:
-      if (window.is_mouse_pressed(mge::MouseButton::Left)) {
-        RelativeRotateEvent rotate_event(m_selection_manager.get_selected_ids(), event.start_position,
-                                         event.end_position, m_rotation_axis.get_value());
-        SendEvent(rotate_event);
-      }
-      break;
-    case ToolManager::Type::Move:
-      if (window.is_mouse_pressed(mge::MouseButton::Left)) {
-        TranslateToCursorEvent translate_event(m_selection_manager.get_selected_ids());
-        SendEvent(translate_event);
-      }
-      break;
-    default:
-      break;
-  }
   return true;
 }
 

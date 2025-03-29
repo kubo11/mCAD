@@ -59,7 +59,7 @@ class SelectionManager {
 
 class ToolManager {
  public:
-  enum class Type { Select, Delete, Move, Scale, Rotate, AddBezierPoint, RemoveBezierPoint };
+  enum class Type { Select, Delete, AddBezierPoint, RemoveBezierPoint };
 
   ToolManager(Type current_type = Type::Select, Type previous_type = Type::Select);
 
@@ -93,7 +93,7 @@ class RotationAxis {
 
 class UILayer : public mge::Layer {
  public:
-  UILayer();
+  UILayer(mge::Scene& scene);
   ~UILayer() = default;
 
   virtual void configure() override;
@@ -104,6 +104,9 @@ class UILayer : public mge::Layer {
   bool m_disable_tools_combo;
   RotationAxis m_rotation_axis;
   SelectionManager m_selection_manager;
+  mge::Scene& m_scene;
+  ImGuizmo::OPERATION m_gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+  ImGuizmo::MODE m_gizmo_mode = ImGuizmo::MODE::WORLD;
 
   void define_create_bezier_curve_dialog();
   void define_create_bezier_surface_dialog();

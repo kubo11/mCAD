@@ -119,6 +119,7 @@ class CadLayer : public mge::Layer {
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events
   bool on_translate_to_cursor(TranslateToCursorEvent& event);
+  bool on_relative_translate(RelativeTranslateEvent& event);
   bool on_relative_scale(RelativeScaleEvent& event);
   bool on_relative_rotate(RelativeRotateEvent& event);
   bool on_translate(TranslateEvent& event);
