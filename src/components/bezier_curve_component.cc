@@ -71,3 +71,16 @@ void BezierCurveComponent::update_position() {
   });
   m_block_updates = false;
 }
+
+void BezierCurveComponent::swap_points(mge::Entity& old_point, mge::Entity& new_point) {
+  for (auto& point : m_control_points) {
+    if (point.second.get() == old_point) {
+      old_point.unregister_on_update<mge::TransformComponent>(point.first);
+      m_self.remove_child(old_point);
+      point = {new_point.register_on_update<mge::TransformComponent>(&BezierCurveComponent::update_curve, this), new_point};
+      m_self.add_child(new_point);
+      update_curve(new_point);
+      return;
+    }
+  }
+}

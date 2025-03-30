@@ -67,7 +67,7 @@ class CadLayer : public mge::Layer {
   void update_point_instance_data(mge::Entity& entity);
   void update_parent_bezier(mge::Entity& entity);
 
-  void relative_translate(mge::Entity& entity, const glm::vec3& center, const glm::vec3& destination);
+  void relative_translate(mge::Entity& entity, const glm::vec3& center, const glm::vec3& destination, std::list<mge::EntityId>& visited);
   void relative_scale(mge::Entity& entity, const glm::vec3& center, const glm::vec3& scaling_factor);
   void relative_rotate(mge::Entity& entity, const glm::vec3& center, const glm::quat& q);
 
@@ -86,6 +86,7 @@ class CadLayer : public mge::Layer {
   bool on_query_entity_by_tag(mge::QueryEntityByTagEvent& event);
   // Point events
   bool on_add_point(AddPointEvent& event);
+  bool on_collapse_points(CollapsePointsEvent& event);
   // Torus events
   bool on_add_torus(AddTorusEvent& event);
   bool on_torus_radius_updated(TorusRadiusUpdatedEvent& event);

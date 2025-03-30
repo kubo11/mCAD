@@ -61,6 +61,21 @@ void BezierSurfaceComponent::update_surface_by_self(mge::Entity& entity) {
   m_blocked_updates_count = m_point_count_u * m_point_count_v - 1;
 }
 
+void BezierSurfaceComponent::swap_points(mge::Entity& old_point, mge::Entity& new_point) {
+  for (auto& row : m_points) {
+    for (auto& point : row) {
+      if (point.second.get() == old_point) {
+        old_point.unregister_on_update<mge::TransformComponent>(point.first);
+        m_self.remove_child(old_point);
+        point = {new_point.register_on_update<mge::TransformComponent>(&BezierSurfaceComponent::update_surface, this), new_point};
+        m_self.add_child(new_point);
+        update_surface(new_point);
+        return;
+      }
+    }
+  }
+}
+
 std::vector<GeometryVertex> BezierSurfaceComponent::generate_geometry() const {
   std::vector<GeometryVertex> vertices;
   auto [point_count_u, point_count_v] = get_bezier_point_counts();

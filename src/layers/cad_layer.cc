@@ -238,6 +238,7 @@ void CadLayer::configure() {
   mge::AddEventListener(mge::EntityEvents::QueryByTag, CadLayer::on_query_entity_by_tag, this);
   // Point events
   AddEventListener(PointEvents::Add, CadLayer::on_add_point, this);
+  AddEventListener(PointEvents::Collapse, CadLayer::on_collapse_points, this);
   // Torus events
   AddEventListener(TorusEvents::Add, CadLayer::on_add_torus, this);
   AddEventListener(TorusEvents::RadiusUpdated, CadLayer::on_torus_radius_updated, this);
@@ -431,9 +432,11 @@ void CadLayer::update_point_instance_data(mge::Entity& entity) {
       });
 }
 
-void CadLayer::relative_translate(mge::Entity& entity, const glm::vec3& center, const glm::vec3& destination) {
-  entity.run_and_propagate([offset = destination - center](auto& entity) {
+void CadLayer::relative_translate(mge::Entity& entity, const glm::vec3& center, const glm::vec3& destination, std::list<mge::EntityId>& visited) {
+  entity.run_and_propagate([offset = destination - center, &visited](auto& entity) {
     if (!entity.template has_component<mge::TransformComponent>()) return;
+    if (std::find(visited.begin(), visited.end(), entity.get_id()) != visited.end()) return;
+    visited.push_back(entity.get_id());
     entity.template patch<mge::TransformComponent>([&offset](auto& transform) { transform.translate(offset); });
   });
 }
@@ -538,6 +541,41 @@ bool CadLayer::on_add_point(AddPointEvent& event) {
   mge::AddedEntityEvent add_event(entity.get_id());
   SendEngineEvent(add_event);
   event.point = entity;
+  return true;
+}
+
+bool CadLayer::on_collapse_points(CollapsePointsEvent& event) {
+  auto pos = glm::vec3{0.0f};
+  for (const auto& id : event.ids) {
+    if (!m_scene.get_entity(id).has_component<PointComponent>()) return true;
+    pos += m_scene.get_entity(id).get_component<mge::TransformComponent>().get_position();
+  }
+  pos /= static_cast<float>(event.ids.size());
+
+  auto& middle_point = create_point(pos);
+  for (const auto& id : event.ids) {
+    auto& old_point = m_scene.get_entity(id);
+    for (auto& parent : old_point.get_parents()) {
+      if (parent.get().has_component<BezierCurveC0Component>())
+        parent.get().patch<BezierCurveC0Component>([&old_point, &middle_point](auto& component){ component.swap_points(old_point, middle_point); });
+      if (parent.get().has_component<BezierCurveC2Component>())
+        parent.get().patch<BezierCurveC2Component>([&old_point, &middle_point](auto& component){ component.swap_points(old_point, middle_point); });
+      if (parent.get().has_component<BezierCurveC2InterpComponent>())
+        parent.get().patch<BezierCurveC2InterpComponent>([&old_point, &middle_point](auto& component){ component.swap_points(old_point, middle_point); });
+      if (parent.get().has_component<BezierSurfaceC0Component>())
+        parent.get().patch<BezierSurfaceC0Component>([&old_point, &middle_point](auto& component){ component.swap_points(old_point, middle_point); });
+      if (parent.get().has_component<BezierSurfaceC2Component>())
+        parent.get().patch<BezierSurfaceC2Component>([&old_point, &middle_point](auto& component){ component.swap_points(old_point, middle_point); });
+    }
+    
+    mge::DeletedEntityEvent event(old_point.get_id());
+    SendEngineEvent(event);
+    m_scene.destroy_entity(old_point);
+  }
+
+  mge::AddedEntityEvent add_event(middle_point.get_id());
+  SendEngineEvent(add_event);
+
   return true;
 }
 
@@ -794,11 +832,12 @@ bool CadLayer::on_cursor_move(CursorMoveEvent& event) {
 bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
   glm::vec3 center = m_mass_center.get().get_component<MassCenterComponent>().get_position();
   glm::vec3 cursor = m_cursor.get().get_component<mge::TransformComponent>().get_position();
+  std::list<mge::EntityId> visited = {};
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    relative_translate(entity, center, cursor);
+    relative_translate(entity, center, cursor, visited);
   }
 
   update_mass_center();
@@ -808,11 +847,12 @@ bool CadLayer::on_translate_to_cursor(TranslateToCursorEvent& event) {
 
 bool CadLayer::on_relative_translate(RelativeTranslateEvent& event) {
   glm::vec3 center = m_mass_center.get().get_component<MassCenterComponent>().get_position();
+  std::list<mge::EntityId> visited = {};
 
   for (auto id : event.ids) {
     auto& entity = m_scene.get_entity(id);
     if (!entity.has_component<mge::TransformComponent>()) continue;
-    relative_translate(entity, center, event.translation);
+    relative_translate(entity, center, event.translation, visited);
   }
 
   update_mass_center();
@@ -851,8 +891,9 @@ bool CadLayer::on_relative_rotate(RelativeRotateEvent& event) {
 bool CadLayer::on_translate(TranslateEvent& event) {
   auto& entity = m_scene.get_entity(event.id);
   auto center = entity.get_component<mge::TransformComponent>().get_position();
+  std::list<mge::EntityId> visited = {};
 
-  relative_translate(entity, center, event.destination);
+  relative_translate(entity, center, event.destination, visited);
 
   update_mass_center();
 

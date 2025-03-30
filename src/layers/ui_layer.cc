@@ -896,6 +896,11 @@ void UILayer::show_tools_panel() {
     SendEvent(event);
   }
 
+  if (ImGui::Button("collapse points") && m_selection_manager.get_selected_count() > 1) {
+    CollapsePointsEvent event(m_selection_manager.get_selected_ids());
+    SendEvent(event);
+  }
+
   ImGui::Text("add object:");
   if (ImGui::Button("point")) {
     AddPointEvent point_event;

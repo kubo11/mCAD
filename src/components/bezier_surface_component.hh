@@ -32,6 +32,8 @@ struct BezierSurfaceComponent {
   void update_surface_by_self(mge::Entity& entity);
   void update_position();
 
+  void swap_points(mge::Entity& old_point, mge::Entity& new_point);
+
   virtual std::vector<GeometryVertex> generate_geometry() const;
   std::vector<unsigned int> generate_surface_topology() const;
   std::vector<unsigned int> generate_grid_topology() const;

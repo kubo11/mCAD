@@ -29,6 +29,8 @@ struct BezierCurveComponent {
   virtual void update_curve_by_self(mge::Entity& entity);
   void update_position();
 
+  void swap_points(mge::Entity& old_point, mge::Entity& new_point);
+
  protected:
   std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>> m_control_points;
   mge::Entity& m_polygon;
