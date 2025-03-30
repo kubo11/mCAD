@@ -11,7 +11,6 @@
 #include "../components/selectible_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../events/events.hh"
-#include "../input_state.hh"
 
 RotationAxis::RotationAxis(RotationAxis::Type type) : m_type(type) {}
 
