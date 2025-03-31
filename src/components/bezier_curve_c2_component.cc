@@ -22,7 +22,7 @@ BezierCurveC2Component::~BezierCurveC2Component() {
   if (m_base == BezierCurveBase::Bernstein) m_self.remove_all_children();
   for (auto& point : m_bernstein_points) {
     mge::DeleteEntityEvent event(point.second.get().get_id());
-    SendEngineEvent(event);
+    mge::SendEvent(event);
   }
 }
 
@@ -108,9 +108,9 @@ void BezierCurveC2Component::remove_point(mge::Entity& point) {
   for (int i = to_delete - 1; i >= 0; --i) {
     m_self.remove_child((m_bernstein_points.begin() + i)->second);
     mge::DeleteEntityEvent event((m_bernstein_points.begin() + i)->second.get().get_id());
-    SendEngineEvent(event);
+    mge::SendEvent(event);
     mge::DeletedEntityEvent event2((m_bernstein_points.begin() + i)->second.get().get_id());
-    SendEngineEvent(event2);
+    mge::SendEvent(event2);
     m_bernstein_points.erase(m_bernstein_points.begin() + i);
   }
 

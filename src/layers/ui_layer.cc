@@ -97,7 +97,7 @@ void SelectionManager::select(mge::EntityId id, bool is_parent) {
     m_selected_entities.push_back(id);
   }
   mge::QueryEntityByIdEvent query_event(id);
-  SendEngineEvent(query_event);
+  mge::SendEvent(query_event);
   query_event.entity.value().get().propagate([this](auto& entity) { select(entity.get_id(), false); });
   SelectionUpdateEvent selection_event(id, true, is_parent);
   SendEvent(selection_event);
@@ -120,7 +120,7 @@ void SelectionManager::select_virtual(mge::EntityId id, bool is_parent) {
     m_selected_entities.push_back(id);
   }
   mge::QueryEntityByIdEvent query_event(id);
-  SendEngineEvent(query_event);
+  mge::SendEvent(query_event);
   query_event.entity.value().get().propagate([this](auto& entity) { select(entity.get_id(), false); });
   SelectionUpdateEvent selection_event(id, true, is_parent);
   SendEvent(selection_event);
@@ -145,7 +145,7 @@ void SelectionManager::unselect(mge::EntityId id) {
   m_selected_count--;
   if (is_parent) m_parent_count--;
   mge::QueryEntityByIdEvent query_event(id);
-  SendEngineEvent(query_event);
+  mge::SendEvent(query_event);
   query_event.entity.value().get().propagate([this](auto& entity) { unselect(entity.get_id()); });
   SelectionUpdateEvent selection_event(id, false, is_parent);
   SendEvent(selection_event);
@@ -159,7 +159,7 @@ void SelectionManager::unselect_virtual(mge::EntityId id) {
   m_selected_count--;
   if (is_parent) m_parent_count--;
   mge::QueryEntityByIdEvent query_event(id);
-  SendEngineEvent(query_event);
+  mge::SendEvent(query_event);
   query_event.entity.value().get().propagate([this](auto& entity) { unselect(entity.get_id()); });
   SelectionUpdateEvent selection_event(id, false, is_parent);
   SendEvent(selection_event);
@@ -198,6 +198,8 @@ const std::string& SelectionManager::get_tag(mge::EntityId id) const { return m_
 
 unsigned int SelectionManager::get_selected_count() const { return m_selected_count; }
 
+unsigned int SelectionManager::get_parent_count() const { return m_parent_count; }
+
 bool SelectionManager::contains(mge::EntityId id) const {
   return m_entities.contains(id) || m_virtual_entities.contains(id);
 }
@@ -210,6 +212,15 @@ std::vector<mge::EntityId> SelectionManager::get_all_entities_ids() {
 }
 
 std::vector<mge::EntityId> SelectionManager::get_selected_ids() { return m_selected_entities; }
+
+std::vector<mge::EntityId> SelectionManager::get_selected_parents_ids() {
+  std::vector<mge::EntityId> parents;
+  parents.reserve(get_parent_count());
+  for (const auto& id : get_selected_ids()) {
+    if (is_parent(id)) parents.push_back(id);
+  }
+  return parents;
+}
 
 bool SelectionManager::add_entity(mge::EntityId id, const std::string& tag) {
   if (contains(id)) return false;
@@ -263,7 +274,7 @@ void SelectionManager::validate_selected() {
       });
   if (m_parent_count == 1) {
     mge::QueryEntityByIdEvent query_event(m_selected_entities.front());
-    SendEngineEvent(query_event);
+    mge::SendEvent(query_event);
     m_displayed_entity = query_event.entity;
 
   } else {
@@ -457,12 +468,54 @@ void UILayer::define_create_bezier_surface_dialog() {
   }
 }
 
+void UILayer::show_create_gregory_patch_window() {
+  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
+  static int selected = -1;
+
+  if (ImGui::Begin("AddGregoryPatch", &m_show_gregory_creator, flags)) {
+    if (ImGui::BeginListBox("##HolesList")) {
+      for(int i = 0; i < m_holes.size(); i++) {
+          if (ImGui::Selectable(("Hole " + std::to_string(i+1)).c_str(), i == selected)) {
+              selected = i;
+              m_selection_manager.unselect_all();\
+              for (const auto& id : m_holes[i]) {
+                m_selection_manager.select(id, true);
+              }
+          }
+      }
+      ImGui::EndListBox();
+    }
+
+    ImGui::BeginDisabled(m_selection_manager.get_parent_count() < 1);
+      if (ImGui::Button("Find holes", ImVec2(120, 0))) {
+        FindHoleEvent event(m_selection_manager.get_selected_parents_ids());
+        SendEvent(event);
+        m_holes = event.hole_ids;
+        selected = -1;
+      }
+    ImGui::EndDisabled();
+    ImGui::SetItemDefaultFocus();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(selected < 0 || m_holes.empty());
+    if (ImGui::Button("Fill hole", ImVec2(120, 0))) {
+      AddGregoryPatchEvent event(m_holes[selected]);
+      SendEvent(event);
+      m_holes.erase(m_holes.begin() + selected);
+      selected = -1;
+    }
+    ImGui::EndDisabled();
+  }
+  ImGui::End();
+}
+
 void UILayer::show_tag_panel(const mge::Entity& entity) {
   auto& component = entity.get_component<mge::TagComponent>();
   std::string tag = component.get_tag();
   if (ImGui::InputText("##tag", &tag)) {
     mge::TagUpdateEvent event(entity.get_id(), tag);
-    SendEngineEvent(event);
+    mge::SendEvent(event);
     if (event.is_handled()) {
       m_selection_manager.rename_entity(entity.get_id(), tag);
     }
@@ -531,7 +584,7 @@ void UILayer::show_renderable_component(const mge::Entity& entity) {
       const bool is_selected = component.get_render_mode() == render_mode;
       if (ImGui::Selectable(to_string(render_mode).c_str(), is_selected)) {
         mge::RenderModeUpdatedEvent event(entity.get_id(), render_mode);
-        SendEngineEvent(event);
+        mge::SendEvent(event);
       }
 
       if (is_selected) ImGui::SetItemDefaultFocus();
@@ -907,7 +960,7 @@ void UILayer::show_tools_panel() {
   }
   ImGui::SameLine();
   if (ImGui::Button("torus")) {
-    AddTorusEvent torus_event(4.0f, 6.0f, 8, 8);
+    AddTorusEvent torus_event(0.2f, 0.4f, 32, 32);
     SendEvent(torus_event);
   }
   ImGui::SameLine();
@@ -920,6 +973,11 @@ void UILayer::show_tools_panel() {
     ImGui::OpenPopup("AddBezierSurface");
   }
   define_create_bezier_surface_dialog();
+  if (ImGui::Button("gregory")) {
+    m_holes.clear();
+    m_show_gregory_creator = true;
+  }
+  if (m_show_gregory_creator) show_create_gregory_patch_window();
 }
 
 void UILayer::show_entities_list_panel() {
@@ -1031,7 +1089,7 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0, 0.0, 0.0, 1.0));
   if (ImGui::Button("Remove", ImVec2(ImGui::GetWindowSize().x, 0.0f))) {
     mge::DeleteEntityEvent event(entity.get_id());
-    SendEngineEvent(event);
+    mge::SendEvent(event);
     if (event.is_handled()) {
       m_selection_manager.remove_entity(event.id);
     }
@@ -1113,7 +1171,7 @@ void UILayer::show_serialization_panel() {
 
 bool UILayer::on_added_entity(mge::AddedEntityEvent& event) {
   mge::QueryEntityByIdEvent query_event(event.id);
-  SendEngineEvent(query_event);
+  mge::SendEvent(query_event);
   MGE_ASSERT(query_event.entity.has_value(), "Queried entity doesn't exist: {}", static_cast<int>(event.id));
   auto& entity = query_event.entity.value().get();
   if (!entity.has_component<SelectibleComponent>()) return false;
@@ -1174,7 +1232,7 @@ bool UILayer::on_mouse_button_pressed(mge::MouseButtonUpdatedEvent& event) {
     case ToolManager::Type::Select:
       if (event.button == mge::MouseButton::Left) {
         mge::QueryEntityByPositionEvent query_event(event.position);
-        SendEngineEvent(query_event);
+        mge::SendEvent(query_event);
         if (query_event.entity.has_value()) {
           auto id = query_event.entity.value().get().get_id();
           if (m_selection_manager.is_selected(id)) {
@@ -1190,11 +1248,11 @@ bool UILayer::on_mouse_button_pressed(mge::MouseButtonUpdatedEvent& event) {
     case ToolManager::Type::Delete:
       if (event.button == mge::MouseButton::Left) {
         mge::QueryEntityByPositionEvent query_event(event.position);
-        SendEngineEvent(query_event);
+        mge::SendEvent(query_event);
         if (query_event.entity.has_value()) {
           auto id = query_event.entity.value().get().get_id();
           mge::DeleteEntityEvent delete_event(id);
-          SendEngineEvent(delete_event);
+          mge::SendEvent(delete_event);
           if (delete_event.is_handled()) m_selection_manager.remove_entity(id);
         }
       }
@@ -1216,7 +1274,7 @@ void UILayer::send_camera_move_events(mge::MouseMovedEvent& event) {
   if (window.is_mouse_pressed(mge::MouseButton::Left)) {
     float sensitivity = 1.0f;
     mge::CameraAngleChangedEvent cam_event(sensitivity * event.get_offset().x, sensitivity * event.get_offset().y);
-    SendEngineEvent(cam_event);
+    mge::SendEvent(cam_event);
     return;
   }
 
@@ -1224,14 +1282,14 @@ void UILayer::send_camera_move_events(mge::MouseMovedEvent& event) {
     float sensitivity = 0.5f;
     mge::CameraPositionChangedEvent cam_event(
         glm::vec2(-sensitivity * event.get_offset().x, -sensitivity * event.get_offset().y));
-    SendEngineEvent(cam_event);
+    mge::SendEvent(cam_event);
     return;
   }
 
   if (window.is_mouse_pressed(mge::MouseButton::Middle)) {
     float sensitivity = 1.005f;
     mge::CameraZoomEvent cam_event(std::pow(sensitivity, event.get_offset().x));
-    SendEngineEvent(cam_event);
+    mge::SendEvent(cam_event);
     return;
   }
 }
@@ -1239,7 +1297,7 @@ void UILayer::send_camera_move_events(mge::MouseMovedEvent& event) {
 void UILayer::send_camera_zoom_event(mge::MouseScrollEvent& event) {
   float sensitivity = 1.1f;
   mge::CameraZoomEvent cam_event(std::pow(sensitivity, -event.y_offset));
-  SendEngineEvent(cam_event);
+  mge::SendEvent(cam_event);
 }
 
 bool UILayer::on_ui_selection_updated(UISelectionUpdateEvent& event) {

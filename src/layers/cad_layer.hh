@@ -116,6 +116,9 @@ class CadLayer : public mge::Layer {
   bool on_add_bezier_surface_c2(AddBezierSurfaceC2Event& event);
   bool on_update_bezier_surface_c2_grid_state(BezierSurfaceC2UpdateGridStateEvent& event);
   bool on_update_bezier_surface_c2_line_count(BezierSurfaceC2UpdateLineCountEvent& event);
+  // Gregory Patch events
+  bool on_find_hole(FindHoleEvent& event);
+  bool on_add_gregory_patch(AddGregoryPatchEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

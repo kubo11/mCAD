@@ -11,7 +11,7 @@ BezierCurveComponent::BezierCurveComponent(BezierCurveBase base, const mge::Enti
 
 BezierCurveComponent::~BezierCurveComponent() {
   mge::DeleteEntityEvent event(m_polygon.get_id());
-  SendEngineEvent(event);
+  mge::SendEvent(event);
   for (auto& [handle, point] : m_control_points) {
     if (point.get().is_valid()) point.get().unregister_on_update<mge::TransformComponent>(handle);
   }

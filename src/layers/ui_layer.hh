@@ -34,11 +34,13 @@ class SelectionManager {
   bool is_parent(mge::EntityId id) const;
   const std::string& get_tag(mge::EntityId id) const;
   unsigned int get_selected_count() const;
+  unsigned int get_parent_count() const;
   bool contains(mge::EntityId id) const;
   bool is_dirty() const;
 
   std::vector<mge::EntityId> get_all_entities_ids();
   std::vector<mge::EntityId> get_selected_ids();
+  std::vector<mge::EntityId> get_selected_parents_ids();
 
   bool add_entity(mge::EntityId id, const std::string& tag);
   bool add_virtual_entity(mge::EntityId id);
@@ -107,9 +109,12 @@ class UILayer : public mge::Layer {
   mge::Scene& m_scene;
   ImGuizmo::OPERATION m_gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
   ImGuizmo::MODE m_gizmo_mode = ImGuizmo::MODE::WORLD;
+  bool m_show_gregory_creator = false;
+  std::vector<std::vector<mge::EntityId>> m_holes = {};
 
   void define_create_bezier_curve_dialog();
   void define_create_bezier_surface_dialog();
+  void show_create_gregory_patch_window();
 
   void show_tag_panel(const mge::Entity& entity);
   void show_transform_panel(const mge::Entity& entity);

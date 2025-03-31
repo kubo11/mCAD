@@ -22,6 +22,9 @@ struct BezierSurfaceComponent {
   BezierSurfaceWrapping get_wrapping() const { return m_wrapping; }
   unsigned int get_patch_count_u() const { return m_patch_count_u; }
   unsigned int get_patch_count_v() const { return m_patch_count_v; }
+  unsigned int get_point_count_u() const { return m_point_count_u; }
+  unsigned int get_point_count_v() const { return m_point_count_v; }
+  const std::vector<std::vector<std::pair<unsigned int, std::reference_wrapper<mge::Entity>>>>& get_points() const { return m_points; }
 
   virtual SurfacePatchesVector get_patches() const = 0;
 

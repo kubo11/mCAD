@@ -14,12 +14,12 @@ BezierSurfaceComponent::BezierSurfaceComponent(unsigned int patch_count_u, unsig
 
 BezierSurfaceComponent::~BezierSurfaceComponent() {
   mge::DeleteEntityEvent event(m_grid.get_id());
-  SendEngineEvent(event);
+  mge::SendEvent(event);
   for (auto& row : m_points) {
     for (auto& [_, point] : row) {
       m_self.remove_child(point);
       mge::DeleteEntityEvent event(point.get().get_id());
-      SendEngineEvent(event);
+      mge::SendEvent(event);
     }
   }
 }

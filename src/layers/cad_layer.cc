@@ -10,6 +10,7 @@
 #include "../components/point_component.hh"
 #include "../components/selectible_component.hh"
 #include "../components/torus_component.hh"
+#include "../geometry/gregory_patch_builder.hh"
 #include "../vertices/cursor_vertex.hh"
 
 CadLayer::CadLayer(mge::Scene& scene, const glm::ivec2& window_size)
@@ -269,6 +270,9 @@ void CadLayer::configure() {
   AddEventListener(BezierSurfaceC2Events::Add, CadLayer::on_add_bezier_surface_c2, this);
   AddEventListener(BezierSurfaceC2Events::UpdateGridState, CadLayer::on_update_bezier_surface_c2_grid_state, this);
   AddEventListener(BezierSurfaceC2Events::UpdateLineCount, CadLayer::on_update_bezier_surface_c2_line_count, this);
+  // Gregory Patch events
+  AddEventListener(GregoryPatchEvents::FindHoles, CadLayer::on_find_hole, this);
+  AddEventListener(GregoryPatchEvents::Add, CadLayer::on_add_gregory_patch, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -296,7 +300,7 @@ void CadLayer::update() {
     m_to_be_destroyed.pop_back();
     m_scene.get_entity(id).destroy();
     mge::DeletedEntityEvent event(id);
-    SendEngineEvent(event);
+    mge::SendEvent(event);
   }
 
   // draw
@@ -539,7 +543,7 @@ bool CadLayer::on_add_point(AddPointEvent& event) {
   auto pos = m_cursor.get().get_component<mge::TransformComponent>().get_position();
   auto& entity = create_point(pos);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   event.point = entity;
   return true;
 }
@@ -569,12 +573,12 @@ bool CadLayer::on_collapse_points(CollapsePointsEvent& event) {
     }
     
     mge::DeletedEntityEvent event(old_point.get_id());
-    SendEngineEvent(event);
+    mge::SendEvent(event);
     m_scene.destroy_entity(old_point);
   }
 
   mge::AddedEntityEvent add_event(middle_point.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
 
   return true;
 }
@@ -583,7 +587,7 @@ bool CadLayer::on_add_torus(AddTorusEvent& event) {
   auto pos = m_cursor.get().get_component<mge::TransformComponent>().get_position();
   auto& entity = create_torus(pos, event.inner_radius, event.outer_radius, event.inner_density, event.outer_density);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -637,7 +641,7 @@ bool CadLayer::on_add_bezier_curve_c0(AddBezierCurveC0Event& event) {
   }
   auto& entity = create_bezier_curve_c0(event.control_points);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -678,7 +682,7 @@ bool CadLayer::on_add_bezier_curve_c2(AddBezierCurveC2Event& event) {
   }
   auto& entity = create_bezier_curve_c2(event.control_points);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -736,7 +740,7 @@ bool CadLayer::on_create_bernstein_point(CreateBernsteinPointEvent& event) {
   entity.register_on_update<ColorComponent>(&CadLayer::update_point_instance_data, this);
   event.bernstein_point = entity;
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -746,7 +750,7 @@ bool CadLayer::on_add_bezier_curve_c2_interp(AddBezierCurveC2InterpEvent& event)
   }
   auto& entity = create_bezier_curve_c2_interp(event.control_points);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -786,7 +790,7 @@ bool CadLayer::on_add_bezier_surface_c0(AddBezierSurfaceC0Event& event) {
   auto& entity = create_bezier_surface_c0(pos, event.wrapping, event.patch_count_u, event.patch_count_v, event.size_u,
                                           event.size_v);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -807,7 +811,7 @@ bool CadLayer::on_add_bezier_surface_c2(AddBezierSurfaceC2Event& event) {
   auto& entity = create_bezier_surface_c2(pos, event.wrapping, event.patch_count_u, event.patch_count_v, event.size_u,
                                           event.size_v);
   mge::AddedEntityEvent add_event(entity.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -820,6 +824,20 @@ bool CadLayer::on_update_bezier_surface_c2_grid_state(BezierSurfaceC2UpdateGridS
 bool CadLayer::on_update_bezier_surface_c2_line_count(BezierSurfaceC2UpdateLineCountEvent& event) {
   m_scene.get_entity(event.id).patch<BezierSurfaceC2Component>(
       [&event](auto& bezier) { bezier.set_line_count(event.line_count); });
+  return true;
+}
+
+bool CadLayer::on_find_hole(FindHoleEvent& event) {
+  mge::EntityVector surfaces = {};
+  for (const auto& id : event.patch_ids) {
+    if (m_scene.get_entity(id).has_component<BezierSurfaceC0Component>()) surfaces.push_back(m_scene.get_entity(id));
+  }
+  GregoryPatchBuilder builder;
+  event.hole_ids = builder.find_holes(surfaces);
+  return true;
+}
+
+bool CadLayer::on_add_gregory_patch(AddGregoryPatchEvent& event) {
   return true;
 }
 
@@ -1048,7 +1066,6 @@ mge::Entity& CadLayer::create_torus(const glm::vec3& pos, float inner_radius, fl
   entity.template add_component<TorusComponent>(inner_radius, outer_radius, inner_density, outer_density);
   entity.template add_component<mge::TagComponent>(TorusComponent::get_new_name());
   entity.template add_component<mge::TransformComponent>(pos);
-  entity.patch<mge::TransformComponent>([](auto& transform) { transform.set_scale({0.1f, 0.1f, 0.1f}); });
   entity.template add_component<SelectibleComponent>();
   entity.template add_component<ColorComponent>();
   auto vertices = entity.get_component<TorusComponent>().generate_geometry();

@@ -103,7 +103,7 @@ bool MCadApplication::on_deserialize_torus(DeserializeTorusEvent& event) {
   });
   torus.patch<mge::TagComponent>([&tag = event.name](auto& tag_component) { tag_component.set_tag(tag); });
   mge::AddedEntityEvent add_event(torus.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -112,7 +112,7 @@ bool MCadApplication::on_deserialize_bezier_curve_c0(DeserializeBezierCurveC0Eve
   auto& bezier = layer.create_bezier_curve_c0(event.points);
   bezier.patch<mge::TagComponent>([&tag = event.name](auto& tag_component) { tag_component.set_tag(tag); });
   mge::AddedEntityEvent add_event(bezier.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -121,7 +121,7 @@ bool MCadApplication::on_deserialize_bezier_curve_c2(DeserializeBezierCurveC2Eve
   auto& bezier = layer.create_bezier_curve_c2(event.points);
   bezier.patch<mge::TagComponent>([&tag = event.name](auto& tag_component) { tag_component.set_tag(tag); });
   mge::AddedEntityEvent add_event(bezier.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -130,7 +130,7 @@ bool MCadApplication::on_deserialize_bezier_curve_c2_interp(DeserializeBezierCur
   auto& bezier = layer.create_bezier_curve_c2_interp(event.points);
   bezier.patch<mge::TagComponent>([&tag = event.name](auto& tag_component) { tag_component.set_tag(tag); });
   mge::AddedEntityEvent add_event(bezier.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -140,7 +140,7 @@ bool MCadApplication::on_deserialize_bezier_surface_c0(DeserializeBezierSurfaceC
                                                 event.line_count);
   bezier.patch<mge::TagComponent>([&tag = event.name](auto& tag_component) { tag_component.set_tag(tag); });
   mge::AddedEntityEvent add_event(bezier.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -150,7 +150,7 @@ bool MCadApplication::on_deserialize_bezier_surface_c2(DeserializeBezierSurfaceC
                                                 event.line_count);
   bezier.patch<mge::TagComponent>([&tag = event.name](auto& tag_component) { tag_component.set_tag(tag); });
   mge::AddedEntityEvent add_event(bezier.get_id());
-  SendEngineEvent(add_event);
+  mge::SendEvent(add_event);
   return true;
 }
 
