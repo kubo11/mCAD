@@ -24,8 +24,8 @@ ordered_json BezierSurfaceC0Serializer::serialize(const mge::Entity& entity, uns
         point_json["id"] = point_id_map.at(point_id);
         patch_json["controlPoints"].push_back(point_json);
       }
-      patch_json["samples"]["x"] = bezier.get_line_count();
-      patch_json["samples"]["y"] = bezier.get_line_count();
+      patch_json["samples"]["x"] = bezier.get_line_count() + 1;
+      patch_json["samples"]["y"] = bezier.get_line_count() + 1;
       json["patches"].push_back(patch_json);
     }
   }
@@ -69,8 +69,8 @@ void BezierSurfaceC0Serializer::deserialize(const ordered_json& data, PointIdMap
   for (auto& patch_json : data["patches"]) {
     unsigned int dU = 0;
     unsigned int dV = 0;
-    line_count = std::max(line_count, patch_json["samples"]["x"].get<unsigned int>());
-    line_count = std::max(line_count, patch_json["samples"]["y"].get<unsigned int>());
+    line_count = std::max(line_count, patch_json["samples"]["x"].get<unsigned int>() - 1);
+    line_count = std::max(line_count, patch_json["samples"]["y"].get<unsigned int>() - 1);
     for (auto& point_json : patch_json["controlPoints"]) {
       unsigned int u = (3 * patch_u + dU) % points_u;
       unsigned int v = (3 * patch_v + dV) % points_v;

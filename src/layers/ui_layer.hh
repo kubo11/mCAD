@@ -126,6 +126,7 @@ class UILayer : public mge::Layer {
   void show_bezier_c2_curve_interp_panel(const mge::Entity& entity);
   void show_bezier_c0_surface_panel(const mge::Entity& entity);
   void show_bezier_c2_surface_panel(const mge::Entity& entity);
+  void show_gregory_patch_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);

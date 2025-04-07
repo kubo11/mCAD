@@ -8,6 +8,7 @@
 #include "../components/bezier_curve_c2_interp_component.hh"
 #include "../components/bezier_surface_c0_component.hh"
 #include "../components/bezier_surface_c2_component.hh"
+#include "../components/gregory_patch_component.hh"
 #include "../components/selectible_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../events/events.hh"
@@ -908,6 +909,34 @@ void UILayer::show_bezier_c2_surface_panel(const mge::Entity& entity) {
   }
 }
 
+void UILayer::show_gregory_patch_panel(const mge::Entity& entity) {
+  int line_count = entity.get_component<GregoryPatchComponent>().get_line_count();
+  ImGui::Text("Line count");
+  if (ImGui::InputInt("##line", &line_count, 1, 1)) {
+    line_count = std::clamp(line_count, 1, 128);
+    GregoryPatchUpdateLineCountEvent event(entity.get_id(), line_count);
+    SendEvent(event);
+  }
+
+  ImGui::Text("Show vectors");
+  auto& component = entity.get_component<GregoryPatchComponent>();
+  std::array<std::string, 2> options = {"yes", "no"};
+  static int selected = 1;
+  if (ImGui::BeginCombo("##vectors", options[selected].c_str())) {
+    for (int n = 0; n < options.size(); n++) {
+      const bool is_selected = component.get_vectors_status() && !n || !component.get_vectors_status() && n;
+      if (ImGui::Selectable(options[n].c_str(), is_selected)) {
+        selected = n;
+        GregoryPatchUpdateVectorsStateEvent vectors_event(entity.get_id(), !n);
+        SendEvent(vectors_event);
+      }
+
+      if (is_selected) ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+}
+
 void UILayer::show_tools_panel() {
   using Tool = ToolManager::Type;
   static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete};
@@ -1080,6 +1109,10 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
 
   if (entity.has_component<BezierSurfaceC2Component>()) {
     show_bezier_c2_surface_panel(entity);
+  }
+
+  if (entity.has_component<GregoryPatchComponent>()) {
+    show_gregory_patch_panel(entity);
   }
 
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {
