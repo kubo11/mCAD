@@ -1,7 +1,6 @@
 #version 460 core
 
 layout(isolines) in;
-in vec3 tessPos[];
 
 uniform mat4 projection_view;
 uniform int line_count;
@@ -17,16 +16,16 @@ void main() {
   float u;
   float v;
   if (flip_uv) {
-    u = (gl_TessCoord.y * float(line_count)) / float(line_count - 1);
+    u = (gl_TessCoord.y * float(line_count + 1)) / float(line_count);
     v = gl_TessCoord.x;
   } else {
     u = gl_TessCoord.x;
-    v = (gl_TessCoord.y * float(line_count)) / float(line_count - 1);
+    v = (gl_TessCoord.y * float(line_count + 1)) / float(line_count);
   }
 
   vec3 bezierV[4];
   for (int i = 0; i < 4; ++i) {
-    bezierV[i] = bezier4(tessPos[4 * i], tessPos[4 * i + 1], tessPos[4 * i + 2], tessPos[4 * i + 3], u);
+    bezierV[i] = bezier4(gl_in[4 * i].gl_Position.xyz, gl_in[4 * i + 1].gl_Position.xyz, gl_in[4 * i + 2].gl_Position.xyz, gl_in[4 * i + 3].gl_Position.xyz, u);
   }
   gl_Position = projection_view * vec4(bezier4(bezierV[0], bezierV[1], bezierV[2], bezierV[3], v), 1);
 }

@@ -8,6 +8,7 @@
 #include "../vertices/cursor_vertex.hh"
 #include "../vertices/geometry_vertex.hh"
 #include "../vertices/point_vertex.hh"
+#include "../geometry/gregory_patch_builder.hh"
 
 class CadLayer : public mge::Layer {
  public:
@@ -35,6 +36,7 @@ class CadLayer : public mge::Layer {
   mge::Entity& create_bezier_surface_c2(const std::vector<std::vector<mge::EntityId>>& points,
                                         BezierSurfaceWrapping wrapping, unsigned int patches_u, unsigned int patches_v,
                                         unsigned int line_count);
+  mge::Entity& create_gregory_patch(const GregoryPatchData& data);
 
   void create_cursor();
   void create_mass_center();
@@ -56,8 +58,11 @@ class CadLayer : public mge::Layer {
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_surface_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_polygon_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_grid_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_gregory_patch_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_gregory_vectors_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_cursor_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_vertical_line_pipeline = nullptr;
+  GregoryPatchBuilder m_gregory_patch_builder = {};
 
   mge::OptionalEntity get_closest_selectible_entity(glm::vec2 screen_space_position) const;
   glm::vec3 unproject_point(glm::vec2 screen_space_position) const;
@@ -119,6 +124,8 @@ class CadLayer : public mge::Layer {
   // Gregory Patch events
   bool on_find_hole(FindHoleEvent& event);
   bool on_add_gregory_patch(AddGregoryPatchEvent& event);
+  bool on_update_gregory_patch_vectors_state(GregoryPatchUpdateVectorsStateEvent& event);
+  bool on_update_gregory_patch_line_count(GregoryPatchUpdateLineCountEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

@@ -6,6 +6,7 @@
 #include "../components/bezier_surface_c0_component.hh"
 #include "../components/bezier_surface_c2_component.hh"
 #include "../components/color_component.hh"
+#include "../components/gregory_patch_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../components/point_component.hh"
 #include "../components/selectible_component.hh"
@@ -93,6 +94,20 @@ void CadLayer::configure() {
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
   m_bezier_polygon_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE_STRIP));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "gregory" / "patch"))
+      .add_uniform_update<glm::mat4>("projection_view",
+                                     [&scene = m_scene]() {
+                                       auto& camera = scene.get_current_camera();
+                                       return camera.get_projection_matrix() * camera.get_view_matrix();
+                                     })
+      .set_patch_count(20);
+  m_gregory_patch_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::PATCH));
+  pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "gregory" / "vectors"))
+      .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
+        auto& camera = scene.get_current_camera();
+        return camera.get_projection_matrix() * camera.get_view_matrix();
+      });
+  m_gregory_vectors_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "bezier_poly"))
       .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
         auto& camera = scene.get_current_camera();
@@ -273,6 +288,8 @@ void CadLayer::configure() {
   // Gregory Patch events
   AddEventListener(GregoryPatchEvents::FindHoles, CadLayer::on_find_hole, this);
   AddEventListener(GregoryPatchEvents::Add, CadLayer::on_add_gregory_patch, this);
+  AddEventListener(GregoryPatchEvents::UpdateVectorsState, CadLayer::on_update_gregory_patch_vectors_state, this);
+  AddEventListener(GregoryPatchEvents::UpdateLineCount, CadLayer::on_update_gregory_patch_line_count, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -326,6 +343,13 @@ void CadLayer::update() {
     m_bezier_surface_pipeline->run();
     m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
     m_bezier_surface_pipeline->run();
+    m_gregory_patch_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_gregory_patch_pipeline->dynamic_uniform_update("flip_uv", false);
+    m_gregory_patch_pipeline->run();
+    m_gregory_patch_pipeline->dynamic_uniform_update("flip_uv", true);
+    m_gregory_patch_pipeline->run();
+    m_gregory_vectors_pipeline->dynamic_uniform_update("anaglyph_state", 1);
+    m_gregory_vectors_pipeline->run();
     m_point_pipeline->dynamic_uniform_update("anaglyph_state", 1);
     m_point_pipeline->run();
     m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 1);
@@ -352,6 +376,13 @@ void CadLayer::update() {
     m_bezier_surface_pipeline->run();
     m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
     m_bezier_surface_pipeline->run();
+    m_gregory_patch_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_gregory_patch_pipeline->dynamic_uniform_update("flip_uv", false);
+    m_gregory_patch_pipeline->run();
+    m_gregory_patch_pipeline->dynamic_uniform_update("flip_uv", true);
+    m_gregory_patch_pipeline->run();
+    m_gregory_vectors_pipeline->dynamic_uniform_update("anaglyph_state", 2);
+    m_gregory_vectors_pipeline->run();
     m_point_pipeline->dynamic_uniform_update("anaglyph_state", 2);
     m_point_pipeline->run();
     m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 2);
@@ -377,6 +408,13 @@ void CadLayer::update() {
     m_bezier_surface_pipeline->run();
     m_bezier_surface_pipeline->dynamic_uniform_update("flip_uv", true);
     m_bezier_surface_pipeline->run();
+    m_gregory_patch_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_gregory_patch_pipeline->dynamic_uniform_update("flip_uv", false);
+    m_gregory_patch_pipeline->run();
+    m_gregory_patch_pipeline->dynamic_uniform_update("flip_uv", true);
+    m_gregory_patch_pipeline->run();
+    m_gregory_vectors_pipeline->dynamic_uniform_update("anaglyph_state", 0);
+    m_gregory_vectors_pipeline->run();
     m_point_pipeline->dynamic_uniform_update("anaglyph_state", 0);
     m_point_pipeline->run();
     m_cursor_pipeline->dynamic_uniform_update("anaglyph_state", 0);
@@ -827,17 +865,32 @@ bool CadLayer::on_update_bezier_surface_c2_line_count(BezierSurfaceC2UpdateLineC
   return true;
 }
 
+bool CadLayer::on_update_gregory_patch_vectors_state(GregoryPatchUpdateVectorsStateEvent& event) {
+  m_scene.get_entity(event.id).patch<GregoryPatchComponent>(
+    [&event](auto& gregory) { gregory.set_vectors_status(event.state); });
+return true;
+}
+
+bool CadLayer::on_update_gregory_patch_line_count(GregoryPatchUpdateLineCountEvent& event) {
+  m_scene.get_entity(event.id).patch<GregoryPatchComponent>(
+    [&event](auto& gregory) { gregory.set_line_count(event.line_count); });
+return true;
+}
+
 bool CadLayer::on_find_hole(FindHoleEvent& event) {
   mge::EntityVector surfaces = {};
   for (const auto& id : event.patch_ids) {
     if (m_scene.get_entity(id).has_component<BezierSurfaceC0Component>()) surfaces.push_back(m_scene.get_entity(id));
   }
-  GregoryPatchBuilder builder;
-  event.hole_ids = builder.find_holes(surfaces);
+  event.hole_ids = m_gregory_patch_builder.find_holes(surfaces);
   return true;
 }
 
 bool CadLayer::on_add_gregory_patch(AddGregoryPatchEvent& event) {
+  auto data = m_gregory_patch_builder.fill_hole(event.hole_ids);
+  auto& entity = create_gregory_patch(data);
+  mge::AddedEntityEvent add_event(entity.get_id());
+  mge::SendEvent(add_event);
   return true;
 }
 
@@ -1521,6 +1574,55 @@ mge::Entity& CadLayer::create_bezier_surface_c2(const std::vector<std::vector<mg
   });
   bezier_entity.patch<BezierSurfaceC2Component>([](auto&) {});
   return bezier_entity;
+}
+
+mge::Entity& CadLayer::create_gregory_patch(const GregoryPatchData& data) {
+  auto& gregory_entity = m_scene.create_entity();
+  auto& vectors_entity = m_scene.create_entity();
+  gregory_entity.add_component<mge::TagComponent>(GregoryPatchComponent::get_new_name());
+  gregory_entity.add_component<mge::TransformComponent>();
+  gregory_entity.add_component<GregoryPatchComponent>(data, gregory_entity, vectors_entity);
+  gregory_entity.add_component<SelectibleComponent>();
+  gregory_entity.add_component<ColorComponent>();
+  vectors_entity.add_component<ColorComponent>(glm::vec3{0.4f, 0.5f, 0.8f});
+  auto& gregory = gregory_entity.get_component<GregoryPatchComponent>();
+  auto patch_vertices = gregory.generate_patch_geometry();
+  auto surface_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  surface_vertex_buffer->bind();
+  surface_vertex_buffer->copy(patch_vertices);
+  surface_vertex_buffer->unbind();
+  auto surface_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(surface_vertex_buffer), GeometryVertex::get_vertex_attributes());
+      gregory_entity.add_component<mge::RenderableComponent<GeometryVertex>>(
+      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_gregory_patch_pipeline}},
+      mge::RenderMode::WIREFRAME, std::move(surface_vertex_array), [&gregory_entity](auto& render_pipeline) {
+        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+            "color", [&gregory_entity]() { return gregory_entity.get_component<ColorComponent>().get_color(); });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&gregory_entity]() {
+          return gregory_entity.get_component<GregoryPatchComponent>().get_line_count();
+        });
+      });
+  auto vectors_vertices = gregory.generate_vectors_geometry();
+  auto vectors_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  vectors_vertex_buffer->bind();
+  vectors_vertex_buffer->copy(vectors_vertices);
+  vectors_vertex_buffer->unbind();
+  auto vectors_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(vectors_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  vectors_entity
+      .add_component<mge::RenderableComponent<GeometryVertex>>(
+          mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_gregory_vectors_pipeline}},
+          mge::RenderMode::WIREFRAME, std::move(vectors_vertex_array),
+          [&vectors_entity](auto& render_pipeline) {
+            render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+                "color", [&vectors_entity]() { return vectors_entity.get_component<ColorComponent>().get_color(); });
+          })
+      .disable();
+      gregory_entity.patch<GregoryPatchComponent>([&gregory_entity](auto& gregory_component) {
+        gregory_entity.template register_on_update<GregoryPatchComponent, GregoryPatchComponent>(
+        &GregoryPatchComponent::update_patch, &gregory_component);
+  });
+  return gregory_entity;
 }
 
 void CadLayer::create_cursor() {

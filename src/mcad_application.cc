@@ -12,6 +12,14 @@ MCadApplication::MCadApplication() {
                                                                100.0f, 0.06f, 1.0f, 1.0f);
   m_scene->add_camera(std::move(anaglyph_camera));
 
+  m_window_manager->set_swap_interval(1);
+  m_scene->get_camera(0).set_velocity(0.5f);
+  m_scene->get_camera(0).set_rotation_sensitivity(5000.0f);
+  m_scene->get_camera(0).set_zoom_sensitivity(20.0f);
+  m_scene->get_camera(1).set_velocity(0.5f);
+  m_scene->get_camera(1).set_rotation_sensitivity(5000.0f);
+  m_scene->get_camera(1).set_zoom_sensitivity(20.0f);
+
   // Anaglyph events
   AddEventListener(AnaglyphEvents::UpdateState, MCadApplication::on_anaglyph_update_state, this);
   AddEventListener(AnaglyphEvents::UpdateEyeDistance, MCadApplication::on_anaglyph_update_eye_distance, this);
@@ -45,9 +53,7 @@ MCadApplication::MCadApplication() {
   push_layer(std::move(std::make_unique<UILayer>(*m_scene)));
 }
 
-MCadApplication::~MCadApplication() {
-  NFD::Quit();
-}
+MCadApplication::~MCadApplication() { NFD::Quit(); }
 
 bool MCadApplication::on_anaglyph_update_state(AnaglyphUpdateStateEvent& event) {
   if (event.state) {

@@ -54,6 +54,7 @@ void main() {
       min((gl_DepthRange.diff * depth(pos) + gl_DepthRange.near + gl_DepthRange.far) / 2, gl_DepthRange.far - EPS);
   vec4 primary_grid = grid(pos, 1.0);
   vec4 secondary_grid = grid(pos, 0.1);
+  if (primary_grid.a < 0.01 && secondary_grid.a < 0.01) discard;
   secondary_grid.a *= 0.5;
   outColor = max(primary_grid, secondary_grid) * float(t > 0.0);
   float ld = linear_depth(pos);

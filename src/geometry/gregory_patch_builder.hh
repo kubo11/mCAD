@@ -4,10 +4,16 @@
 #include "mge.hh"
 
 struct Vertex {
-  mge::EntityId eid;
+  std::vector<std::reference_wrapper<mge::Entity>> points;
+  std::vector<std::reference_wrapper<mge::Entity>> prevs;
+  bool is_corner;
+  mge::OptionalEntity m_patch;
 
   friend bool operator==(const Vertex& e1, const Vertex& e2) {
-    return e1.eid == e2.eid;
+    if (e1.points.size() != e2.points.size()) return false;
+    for (unsigned int i = 0; i < e1.points.size(); ++i)
+      if (e1.points[i].get().get_id() != e2.points[i].get().get_id()) return false;
+    return true;
   }
 };
 
@@ -19,6 +25,7 @@ class BorderGraph {
    void add_edge(unsigned int v1, unsigned int v2);
    unsigned int get_vertex_count() const;
    void clear();
+   Vertex& get_vertex(unsigned int v);
  
    std::vector<Vertex> dfs();
    std::vector<std::vector<Vertex>> find_cycles(unsigned int length);
@@ -33,16 +40,35 @@ class BorderGraph {
    std::vector<std::vector<Vertex>> find_cycles(unsigned int beg, unsigned int v, unsigned int length, std::vector<bool> visited);
  
    bool comapre_cycles(const std::vector<Vertex>& c1, const std::vector<Vertex>& c2);
- };
+};
+
+struct GregoryPatchData {
+  std::vector<Vertex> patch_sides;
+  glm::vec3 p0;
+  std::vector<glm::vec3> p1;
+  std::vector<glm::vec3> p2;
+  std::vector<std::array<glm::vec3, 7>> p3;
+  std::vector<std::array<glm::vec3, 4>> fi0;
+  std::vector<std::array<glm::vec3, 2>> fi1;
+  std::vector<std::array<glm::vec3, 2>> fi2;
+};
 
 class GregoryPatchBuilder {
  public:
   std::vector<std::vector<mge::EntityId>> find_holes(const mge::EntityVector& surfaces);
+  GregoryPatchData fill_hole(const std::vector<mge::EntityId>& hole_ids);
+  GregoryPatchData fill_hole(const std::vector<Vertex>& hole);
  private:
   BorderGraph m_graph;
-  std::unordered_map<mge::EntityId, unsigned int> m_reverse_point_map;
+  std::unordered_map<mge::EntityId, unsigned int> m_reverse_corner_map;
+  std::vector<std::vector<Vertex>> m_holes;
 
-  unsigned int add_point_to_graph(const mge::EntityId& id);
+  void add_vertex_to_graph(Vertex v);
+  void swap_order(Vertex& v);
+  std::vector<Vertex> get_hole(const std::vector<mge::EntityId>& hole_ids);
+
+  std::pair<std::array<glm::vec3, 4>, std::array<glm::vec3, 4>> divideDeCasteljau(std::array<glm::vec3, 4> control_points, float t);
+  glm::vec3 deCasteljau(std::array<glm::vec3, 3> control_points, float t);
 };
 
 #endif // MCAD_GREOGRY_PATCH_BUILDER
