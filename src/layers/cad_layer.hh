@@ -8,6 +8,7 @@
 #include "../vertices/cursor_vertex.hh"
 #include "../vertices/geometry_vertex.hh"
 #include "../vertices/point_vertex.hh"
+#include "../geometry/intersection_builder.hh"
 #include "../geometry/gregory_patch_builder.hh"
 
 class CadLayer : public mge::Layer {
@@ -37,6 +38,7 @@ class CadLayer : public mge::Layer {
                                         BezierSurfaceWrapping wrapping, unsigned int patches_u, unsigned int patches_v,
                                         unsigned int line_count);
   mge::Entity& create_gregory_patch(const GregoryPatchData& data);
+  mge::Entity& create_intersection(mge::Entity& intersectable1, mge::Entity& intersectable2, const std::vector<glm::vec2>& points1, const std::vector<glm::vec2>& points2);
 
   void create_cursor();
   void create_mass_center();
@@ -63,6 +65,7 @@ class CadLayer : public mge::Layer {
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_cursor_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_vertical_line_pipeline = nullptr;
   GregoryPatchBuilder m_gregory_patch_builder = {};
+  IntersectionBuilder m_intersection_builder = {};
 
   mge::OptionalEntity get_closest_selectible_entity(glm::vec2 screen_space_position) const;
   glm::vec3 unproject_point(glm::vec2 screen_space_position) const;
@@ -126,6 +129,10 @@ class CadLayer : public mge::Layer {
   bool on_add_gregory_patch(AddGregoryPatchEvent& event);
   bool on_update_gregory_patch_vectors_state(GregoryPatchUpdateVectorsStateEvent& event);
   bool on_update_gregory_patch_line_count(GregoryPatchUpdateLineCountEvent& event);
+  // Intersection events
+  bool on_find_intersection_starting_point(FindIntersectionStartingPointEvent& event);
+  bool on_find_intersection(FindIntersectionEvent& event);
+  bool on_convert_intersection_to_interp_curve(ConvertIntersectionToInterpCurveEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

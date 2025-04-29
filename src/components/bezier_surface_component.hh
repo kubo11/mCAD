@@ -105,4 +105,132 @@ struct BezierSurfaceComponent {
   SurfacePointsVector generate_bezier_points_v_wrapping(const SurfacePointsVector& boor_points) const;
 };
 
+inline float normalize_parameter(float a, bool wrap) {
+  if (wrap) {
+  a = std::fmod(a, 1.0f);
+  if (a < 0.0f) {
+    a += 1.0f;
+  }
+  } else {
+    a = std::clamp(a, 0.0f, 1.0f);
+  }
+  return a;
+}
+
+inline float binom3(int i) {
+    if (i == 0 || i == 3)
+        return 1;
+    return 3;
+}
+
+inline float B2(int i, float t) {
+    if (i < 0 || i > 2) {
+        return 0;
+    }
+    if (i == 1) {
+        return 2 * t * (1 - t);
+    }
+    return pow(t, i) * pow(1 - t, 2 - i);
+}
+
+inline float B3(int i, float t) {
+    if (i < 0 || i > 3) {
+        return 0;
+    }
+    return binom3(i) * pow(t, i) * pow(1 - t, 3 - i);
+}
+
+inline glm::vec3 c0_pos(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+    float u = uv.x, v = uv.y;
+
+    glm::vec3 result(0,0,0);
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j)
+            result += B3(i, u) * B3(j, v) * patch[j * 4 + i];
+    return result;
+}
+
+inline glm::vec3 c0_grad_u(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+    float u = uv.x, v = uv.y;
+
+    glm::vec3 result(0,0,0);
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j)
+            result += 3 * (B2(i-1, u) - B2(i, u)) * B3(j, v) * patch[j * 4 + i];
+    return result;
+    // TODO Test
+}
+
+inline glm::vec3 c0_grad_v(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+    float u = uv.x, v = uv.y;
+
+    glm::vec3 result(0,0,0);
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j)
+            result += B3(i, u) * 3 * (B2(j-1, v) - B2(j, v)) * patch[j * 4 + i];
+    return result;
+}
+
+inline float deBoorCoefficient(int i, float t) {
+    float t2 = t * t;
+    float t3 = t2 * t;
+    switch(i) {
+        case -1:
+            return (-t3 + 3 * t2 - 3 * t + 1) / 6;
+        case 0:
+            return (3 * t3 - 6 * t2 + 4) / 6;
+        case 1:
+            return (-3 * t3 + 3 * t2 + 3 * t + 1) / 6;
+        case 2:
+            default:
+                return (t3) / 6;
+    }
+}
+
+inline float deBoorDerivative(int i, float t) {
+    float t2der = 2 * t;
+    float t3der = 3 * t * t;
+    switch(i) {
+        case -1:
+            return (-t3der + 3 * t2der - 3 /* * t der */) / 6;
+        case 0:
+            return (3 * t3der - 6 * t2der) / 6;
+        case 1:
+            return (-3 * t3der + 3 * t2der + 3 /* t der */) / 6;
+        case 2:
+            default:
+                return (t3der) / 6;
+    }
+}
+
+inline glm::vec3 c2_pos(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+    float u = uv.x, v = uv.y;
+
+    glm::vec3 result(0,0,0);
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j)
+            result += deBoorCoefficient(i - 1, u) * deBoorCoefficient(j - 1, v) * patch[j * 4 + i];
+    return result;
+}
+
+inline glm::vec3 c2_grad_u(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+    float u = uv.x, v = uv.y;
+
+    glm::vec3 result(0,0,0);
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j)
+            result += deBoorDerivative(i - 1, u) * deBoorCoefficient(j - 1, v) * patch[j * 4 + i];
+    return result;
+}
+
+inline glm::vec3 c2_grad_v(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+    float u = uv.x, v = uv.y;
+
+    glm::vec3 result(0,0,0);
+    for(int i = 0; i < 4; ++i)
+        for(int j = 0; j < 4; ++j)
+            result += deBoorCoefficient(i - 1, u) * deBoorDerivative(j - 1, v) * patch[j * 4 + i];
+    return result;
+}
+
 #endif  // MCAD_GEOMETRY_BEZIER_SURFACE_COMPONENT

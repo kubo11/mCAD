@@ -110,11 +110,13 @@ class UILayer : public mge::Layer {
   ImGuizmo::OPERATION m_gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
   ImGuizmo::MODE m_gizmo_mode = ImGuizmo::MODE::WORLD;
   bool m_show_gregory_creator = false;
+  bool m_show_intersection_builder = false;
   std::vector<std::vector<mge::EntityId>> m_holes = {};
 
   void define_create_bezier_curve_dialog();
   void define_create_bezier_surface_dialog();
   void show_create_gregory_patch_window();
+  void show_find_intersection_window();
 
   void show_tag_panel(const mge::Entity& entity);
   void show_transform_panel(const mge::Entity& entity);
@@ -127,6 +129,7 @@ class UILayer : public mge::Layer {
   void show_bezier_c0_surface_panel(const mge::Entity& entity);
   void show_bezier_c2_surface_panel(const mge::Entity& entity);
   void show_gregory_patch_panel(const mge::Entity& entity);
+  void show_intersection_panel(const mge::Entity& entity);
   void show_tools_panel();
   void show_entities_list_panel();
   void show_entity_parameters_panel(const mge::Entity& entity);

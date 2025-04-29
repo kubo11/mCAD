@@ -8,6 +8,7 @@
 #include "bezier_surface_c0_event.hh"
 #include "bezier_surface_c2_event.hh"
 #include "cursor_event.hh"
+#include "intersection_event.hh"
 #include "gregory_patch.hh"
 #include "point_event.hh"
 #include "select_event.hh"
@@ -17,7 +18,7 @@
 #include "ui_event.hh"
 
 DeclareClientEventManager(AnaglyphEvents, BezierCurveC0Events, BezierCurveC2Events, BezierCurveC2InterpEvents,
-                          BezierSurfaceC0Events, BezierSurfaceC2Events, CursorEvents, GregoryPatchEvents,
+                          BezierSurfaceC0Events, BezierSurfaceC2Events, IntersectionEvents, CursorEvents, GregoryPatchEvents,
                           SerializationEvents, PointEvents, SelectionEvents, TorusEvents, TransformEvents, UIEvents);
 
 #endif  // MCAD_EVENTS

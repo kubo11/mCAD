@@ -17,6 +17,9 @@ struct BezierSurfaceC0Component : public BezierSurfaceComponent {
   virtual void update_surface(mge::Entity& entity) override;
   virtual SurfacePatchesVector get_patches() const override;
 
+  glm::vec3 get_uv_pos(glm::vec2 uv) const;
+  std::pair<glm::vec3, glm::vec3> get_uv_grad(glm::vec2 uv) const;
+
  private:
   static unsigned int s_new_id;
 

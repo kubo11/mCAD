@@ -8,6 +8,7 @@
 #include "../components/bezier_curve_c2_interp_component.hh"
 #include "../components/bezier_surface_c0_component.hh"
 #include "../components/bezier_surface_c2_component.hh"
+#include "../components/intersection_component.hh"
 #include "../components/gregory_patch_component.hh"
 #include "../components/selectible_component.hh"
 #include "../components/mass_center_component.hh"
@@ -511,6 +512,81 @@ void UILayer::show_create_gregory_patch_window() {
   ImGui::End();
 }
 
+void UILayer::show_find_intersection_window() {
+  ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+  ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
+  static glm::vec2 uv = {-1.0f, -1.0f}, st = {-1.0f, -1.0f};
+  static float accuracy = 0.00001f, newton_factor = 0.167f;
+  static bool rough = false, cursor = true;
+
+  if (ImGui::Begin("IntersectionBuilder", &m_show_intersection_builder, flags)) {
+    bool intersectable_selected = m_selection_manager.get_parent_count() > 0 && m_selection_manager.get_parent_count() < 3;
+    for (const auto& entity_id : m_selection_manager.get_selected_parents_ids() | views::take(2)) {
+      mge::QueryEntityByIdEvent query_event(entity_id);
+      mge::SendEvent(query_event);
+      if (!query_event.entity.has_value() || 
+          !(query_event.entity.value().get().has_component<TorusComponent>() ||
+            query_event.entity.value().get().has_component<BezierSurfaceC0Component>() ||
+            query_event.entity.value().get().has_component<BezierSurfaceC2Component>())) {
+        intersectable_selected = false;
+        break;
+      }
+    }
+    bool start_found = uv.x != -1.0f && uv.y != -1.0f && st.x != -1.0f && st.y != -1.0f;
+    if (!intersectable_selected) {
+      ImGui::Text("Select 1 or 2 intersectable entities");
+      uv = {-1.0f, -1.0f};
+      st = {-1.0f, -1.0f};
+    } else {
+      if (start_found) {
+        ImGui::Text("uv: (%.02f, %.02f)", uv.x, uv.y);
+        ImGui::Text("st: (%.02f, %.02f)", st.x, st.y);
+      }
+    }
+    // controls
+    ImGui::DragFloat("Accuracy", &accuracy, 0.00001f, 0.00001f, 0.01f, "%.05f");
+    ImGui::DragFloat("Newton factor", &newton_factor, 0.001f, 0.0f, 1.0f, "%.03f");
+    ImGui::Checkbox("Rough", &rough);
+    ImGui::SameLine();
+    ImGui::Checkbox("Use cursor as starting point", &cursor);
+    if (ImGui::Button("Find start", ImVec2(120, 0))) {
+      if (m_selection_manager.get_parent_count() == 1) {
+        auto id = m_selection_manager.get_selected_parents_ids()[0];
+          FindIntersectionStartingPointEvent event(id, id, cursor);
+          SendEvent(event);
+          uv = event.starting_point.first;
+          st = event.starting_point.second;
+      }
+      else {
+        auto id1 = m_selection_manager.get_selected_parents_ids()[0];
+        auto id2 = m_selection_manager.get_selected_parents_ids()[1];
+          FindIntersectionStartingPointEvent event(id1, id2, cursor);
+          SendEvent(event);
+          uv = event.starting_point.first;
+          st = event.starting_point.second;
+      }
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!(intersectable_selected && start_found));
+    if (ImGui::Button("Find", ImVec2(120, 0))) {
+      if (m_selection_manager.get_parent_count() == 1) {
+        auto id = m_selection_manager.get_selected_parents_ids()[0];
+        FindIntersectionEvent event(id, id, {uv, st}, newton_factor, accuracy, rough);
+        SendEvent(event);
+      }
+      else {
+        auto id1 = m_selection_manager.get_selected_parents_ids()[0];
+        auto id2 = m_selection_manager.get_selected_parents_ids()[1];
+        FindIntersectionEvent event(id1, id2, {uv, st}, newton_factor, accuracy, rough);
+        SendEvent(event);
+      }
+    }
+    ImGui::EndDisabled();
+  }
+  ImGui::End();
+} 
+
 void UILayer::show_tag_panel(const mge::Entity& entity) {
   auto& component = entity.get_component<mge::TagComponent>();
   std::string tag = component.get_tag();
@@ -937,6 +1013,16 @@ void UILayer::show_gregory_patch_panel(const mge::Entity& entity) {
   }
 }
 
+void UILayer::show_intersection_panel(const mge::Entity& entity) {
+  // texture 1
+  // texture 2
+  if (ImGui::Button("To interp C2", ImVec2(120, 0))) {
+    m_selection_manager.unselect(entity.get_id());
+    ConvertIntersectionToInterpCurveEvent event(entity.get_id());
+    SendEvent(event);
+  }
+}
+
 void UILayer::show_tools_panel() {
   using Tool = ToolManager::Type;
   static std::vector<Tool> displayable_tools = {Tool::Select, Tool::Delete};
@@ -1007,6 +1093,11 @@ void UILayer::show_tools_panel() {
     m_show_gregory_creator = true;
   }
   if (m_show_gregory_creator) show_create_gregory_patch_window();
+  ImGui::SameLine();
+  if (ImGui::Button("intersection")) {
+    m_show_intersection_builder = true;
+  }
+  if (m_show_intersection_builder) show_find_intersection_window();
 }
 
 void UILayer::show_entities_list_panel() {
@@ -1113,6 +1204,10 @@ void UILayer::show_entity_parameters_panel(const mge::Entity& entity) {
 
   if (entity.has_component<GregoryPatchComponent>()) {
     show_gregory_patch_panel(entity);
+  }
+
+  if (entity.has_component<IntersectionComponent>()) {
+    show_intersection_panel(entity);
   }
 
   if (entity.has_component<mge::RenderableComponent<GeometryVertex>>()) {

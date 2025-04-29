@@ -20,6 +20,9 @@ struct BezierSurfaceC2Component : public BezierSurfaceComponent {
   void create_bezier_points();
   virtual SurfacePatchesVector get_patches() const override;
 
+  glm::vec3 get_uv_pos(glm::vec2 uv) const;
+  std::pair<glm::vec3, glm::vec3> get_uv_grad(glm::vec2 uv) const;
+
  private:
   static unsigned int s_new_id;
   SurfacePointsVector m_bezier_points;

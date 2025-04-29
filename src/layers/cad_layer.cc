@@ -6,6 +6,7 @@
 #include "../components/bezier_surface_c0_component.hh"
 #include "../components/bezier_surface_c2_component.hh"
 #include "../components/color_component.hh"
+#include "../components/intersection_component.hh"
 #include "../components/gregory_patch_component.hh"
 #include "../components/mass_center_component.hh"
 #include "../components/point_component.hh"
@@ -290,6 +291,10 @@ void CadLayer::configure() {
   AddEventListener(GregoryPatchEvents::Add, CadLayer::on_add_gregory_patch, this);
   AddEventListener(GregoryPatchEvents::UpdateVectorsState, CadLayer::on_update_gregory_patch_vectors_state, this);
   AddEventListener(GregoryPatchEvents::UpdateLineCount, CadLayer::on_update_gregory_patch_line_count, this);
+  // Intersection events
+  AddEventListener(IntersectionEvents::FindStartingPoint, CadLayer::on_find_intersection_starting_point, this);
+  AddEventListener(IntersectionEvents::Find, CadLayer::on_find_intersection, this);
+  AddEventListener(IntersectionEvents::ConvertToInterCurve, CadLayer::on_convert_intersection_to_interp_curve, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -891,6 +896,42 @@ bool CadLayer::on_add_gregory_patch(AddGregoryPatchEvent& event) {
   auto& entity = create_gregory_patch(data);
   mge::AddedEntityEvent add_event(entity.get_id());
   mge::SendEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_find_intersection_starting_point(FindIntersectionStartingPointEvent& event) {
+  if (event.cursor) {
+    event.starting_point = m_intersection_builder.find_starting_point(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2), m_cursor.get().get_component<mge::TransformComponent>().get_position());
+  }
+  else {
+    event.starting_point = m_intersection_builder.find_starting_point(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2));
+  }
+  
+  return true;
+}
+
+bool CadLayer::on_find_intersection(FindIntersectionEvent& event) {
+  auto [points1, points2] = m_intersection_builder.find(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2), event.starting_point.first, event.starting_point.second, event.newton_factor, event.max_dist, event.rough);
+  auto& entity = create_intersection(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2), points1, points2);
+  mge::AddedEntityEvent add_event(entity.get_id());
+  mge::SendEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_convert_intersection_to_interp_curve(ConvertIntersectionToInterpCurveEvent& event) {
+  auto& intersection = m_scene.get_entity(event.intersection);
+  std::vector<mge::EntityId> points;
+  for (const auto& pos : intersection.get_component<IntersectionComponent>().get_points()) {
+    points.push_back(create_point(pos).get_id());
+    mge::AddedEntityEvent add_event(points.back());
+    mge::SendEvent(add_event);
+  }
+  points.push_back(points.front());
+  auto& curve = create_bezier_curve_c2_interp(points);
+  mge::AddedEntityEvent add_event(curve.get_id());
+  mge::SendEvent(add_event);
+  m_to_be_destroyed.push_back(intersection.get_id());
+  
   return true;
 }
 
@@ -1593,15 +1634,15 @@ mge::Entity& CadLayer::create_gregory_patch(const GregoryPatchData& data) {
   surface_vertex_buffer->unbind();
   auto surface_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
       std::move(surface_vertex_buffer), GeometryVertex::get_vertex_attributes());
-      gregory_entity.add_component<mge::RenderableComponent<GeometryVertex>>(
-      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_gregory_patch_pipeline}},
-      mge::RenderMode::WIREFRAME, std::move(surface_vertex_array), [&gregory_entity](auto& render_pipeline) {
-        render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
-            "color", [&gregory_entity]() { return gregory_entity.get_component<ColorComponent>().get_color(); });
-        render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&gregory_entity]() {
-          return gregory_entity.get_component<GregoryPatchComponent>().get_line_count();
-        });
-      });
+  gregory_entity.add_component<mge::RenderableComponent<GeometryVertex>>(
+  mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_gregory_patch_pipeline}},
+  mge::RenderMode::WIREFRAME, std::move(surface_vertex_array), [&gregory_entity](auto& render_pipeline) {
+    render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+        "color", [&gregory_entity]() { return gregory_entity.get_component<ColorComponent>().get_color(); });
+    render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&gregory_entity]() {
+      return gregory_entity.get_component<GregoryPatchComponent>().get_line_count();
+    });
+  });
   auto vectors_vertices = gregory.generate_vectors_geometry();
   auto vectors_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   vectors_vertex_buffer->bind();
@@ -1623,6 +1664,33 @@ mge::Entity& CadLayer::create_gregory_patch(const GregoryPatchData& data) {
         &GregoryPatchComponent::update_patch, &gregory_component);
   });
   return gregory_entity;
+}
+
+mge::Entity& CadLayer::create_intersection(mge::Entity& intersectable1, mge::Entity& intersectable2, const std::vector<glm::vec2>& points1, const std::vector<glm::vec2>& points2) {
+  std::vector<GeometryVertex> curve_vertices;
+  curve_vertices.reserve(points1.size()+1);
+  for (auto& point : points1) {
+    curve_vertices.push_back(m_intersection_builder.get_surface_position(intersectable1, point));
+  }
+  curve_vertices.push_back(curve_vertices.front());
+  auto& intersection_entity = m_scene.create_entity();
+  intersection_entity.add_component<mge::TagComponent>(IntersectionComponent::get_new_name());
+  intersection_entity.add_component<SelectibleComponent>();
+  intersection_entity.add_component<ColorComponent>();
+  intersection_entity.add_component<IntersectionComponent>(intersectable1, intersectable2, points1, points2);
+  auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  curve_vertex_buffer->bind();
+  curve_vertex_buffer->copy(curve_vertices);
+  curve_vertex_buffer->unbind();
+  auto curve_vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
+      std::move(curve_vertex_buffer), GeometryVertex::get_vertex_attributes());
+  intersection_entity.add_component<mge::RenderableComponent<GeometryVertex>>(
+  mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_bezier_polygon_pipeline}},
+  mge::RenderMode::WIREFRAME, std::move(curve_vertex_array), [&intersection_entity](auto& render_pipeline) {
+    render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
+        "color", [&intersection_entity]() { return intersection_entity.get_component<ColorComponent>().get_color(); });
+  });
+  return intersection_entity;
 }
 
 void CadLayer::create_cursor() {
