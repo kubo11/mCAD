@@ -1,0 +1,8 @@
+#ifndef MCAD_INTERSECTION_COMPONENT
+#define MCAD_INTERSECTION_COMPONENT
+
+struct IntersectionComponent {
+
+};
+
+#endif // MCAD_INTERSECTION_COMPONENT
