@@ -68,3 +68,11 @@ std::vector<unsigned int> TorusComponent::generate_topology<mge::RenderMode::SOL
 
   return indices;
 }
+
+glm::vec3 TorusComponent::get_uv_pos(glm::vec2 uv) const {
+
+}
+
+std::pair<glm::vec3, glm::vec3> TorusComponent::get_uv_grad(glm::vec2 uv) const {
+  
+}

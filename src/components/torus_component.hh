@@ -38,6 +38,9 @@ struct TorusComponent {
     }
   }
 
+  glm::vec3 get_uv_pos(glm::vec2 uv) const;
+  std::pair<glm::vec3, glm::vec3> get_uv_grad(glm::vec2 uv) const;
+
   float get_inner_radius() const { return m_inner_radius; }
   float get_outer_radius() const { return m_outer_radius; }
   unsigned int get_horizontal_density() const { return m_horizontal_density; }

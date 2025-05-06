@@ -90,3 +90,11 @@ BezierSurfaceC0Component::SurfacePatchesVector BezierSurfaceC0Component::get_pat
   }
   return patches;
 }
+
+glm::vec3 BezierSurfaceC0Component::get_uv_pos(glm::vec2 uv) const {
+
+}
+
+std::pair<glm::vec3, glm::vec3> BezierSurfaceC0Component::get_uv_grad(glm::vec2 uv) const {
+  
+}
