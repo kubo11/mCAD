@@ -92,9 +92,44 @@ BezierSurfaceC0Component::SurfacePatchesVector BezierSurfaceC0Component::get_pat
 }
 
 glm::vec3 BezierSurfaceC0Component::get_uv_pos(glm::vec2 uv) const {
+  const int w =  m_patch_count_u, h = m_patch_count_v;
+  float u = uv.x, v = uv.y;
+  u = normalize_parameter(u, m_wrapping == BezierSurfaceWrapping::u);
+  v = normalize_parameter(v, m_wrapping == BezierSurfaceWrapping::v);
+  glm::ivec2 patch_pos = {
+      std::min(w - 1, (int)(u * w)),
+      std::min(h - 1, (int)(v * h))
+  };
+  glm::vec3 patch[16];
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      patch[i * 4 + j] = m_points[(3*w+i)%m_point_count_u][(3*h+j)%m_point_count_v].second.get().get_component<mge::TransformComponent>().get_position();
+    }
+  }
+  glm::vec2 patch_uv = { u * w - patch_pos.x, v * h - patch_pos.y };
 
+  return c0_pos(patch_uv, patch);
 }
 
 std::pair<glm::vec3, glm::vec3> BezierSurfaceC0Component::get_uv_grad(glm::vec2 uv) const {
-  
+  const int w = m_patch_count_u, h = m_patch_count_v;
+  float u = uv.x, v = uv.y;
+  u = normalize_parameter(u, m_wrapping == BezierSurfaceWrapping::u);
+  v = normalize_parameter(v, m_wrapping == BezierSurfaceWrapping::v);
+  glm::ivec2 patch_pos = {
+      std::min(w - 1, (int)(u * w)),
+      std::min(h - 1, (int)(v * h))
+  };
+  glm::vec3 patch[16];
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      patch[i * 4 + j] = m_points[(3*w+i)%m_point_count_u][(3*h+j)%m_point_count_v].second.get().get_component<mge::TransformComponent>().get_position();
+    }
+  }
+  glm::vec2 patch_uv = { u * w - patch_pos.x, v * h - patch_pos.y };
+
+  return {
+      c0_grad_u(patch_uv, patch),
+      c0_grad_v(patch_uv, patch)
+  };
 }

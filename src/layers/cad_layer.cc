@@ -290,6 +290,9 @@ void CadLayer::configure() {
   AddEventListener(GregoryPatchEvents::Add, CadLayer::on_add_gregory_patch, this);
   AddEventListener(GregoryPatchEvents::UpdateVectorsState, CadLayer::on_update_gregory_patch_vectors_state, this);
   AddEventListener(GregoryPatchEvents::UpdateLineCount, CadLayer::on_update_gregory_patch_line_count, this);
+  // Intersection events
+  AddEventListener(IntersectionEvents::FindStartingPoint, CadLayer::on_find_intersection_starting_point, this);
+  AddEventListener(IntersectionEvents::Find, CadLayer::on_find_intersection, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -889,6 +892,19 @@ bool CadLayer::on_find_hole(FindHoleEvent& event) {
 bool CadLayer::on_add_gregory_patch(AddGregoryPatchEvent& event) {
   auto data = m_gregory_patch_builder.fill_hole(event.hole_ids);
   auto& entity = create_gregory_patch(data);
+  mge::AddedEntityEvent add_event(entity.get_id());
+  mge::SendEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_find_intersection_starting_point(FindIntersectionStartingPointEvent& event) {
+  event.starting_point = m_intersection_builder.find_starting_point(event.s1, event.s2, event.beg);
+  return true;
+}
+
+bool CadLayer::on_find_intersection(FindIntersectionEvent& event) {
+  auto [points1, points2] = m_intersection_builder.find(event.s1, event.s2, event.starting_point.first, event.starting_point.second, event.newton_factor, event.max_dist, event.rough);
+  auto& entity = create_intersection(event.s1, event.s2, points1, points2);
   mge::AddedEntityEvent add_event(entity.get_id());
   mge::SendEvent(add_event);
   return true;
@@ -1623,6 +1639,17 @@ mge::Entity& CadLayer::create_gregory_patch(const GregoryPatchData& data) {
         &GregoryPatchComponent::update_patch, &gregory_component);
   });
   return gregory_entity;
+}
+
+mge::Entity& CadLayer::create_intersection(mge::Entity& intersectable1, mge::Entity& intersectable2, const std::vector<glm::vec2>& points1, const std::vector<glm::vec2>& points2) {
+  for (auto& point : points1) {
+    // transform
+  }
+  for (auto& point : points2) {
+    // transform
+  }
+  // create intersection component
+  // create renderable curve
 }
 
 void CadLayer::create_cursor() {

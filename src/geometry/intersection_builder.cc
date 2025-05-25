@@ -271,18 +271,6 @@ float IntersectionBuilder::penalty_function(glm::vec2 uv, glm::vec2 st) {
   return std::fmax(0.0f, (1 - glm::distance(uv, st) / same_penalty_len) * same_penalty_max);
 }
 
-float IntersectionBuilder::normalize_parameter(float a, bool wrap) {
-  if (wrap) {
-  a = std::fmod(a, 1.0f);
-  if (a < 0.0f) {
-    a += 1.0f;
-  }
-  } else {
-    a = std::clamp(a, 0.0f, 1.0f);
-  }
-  return a;
-}
-
 glm::vec2 IntersectionBuilder::normalize_parametrization(mge::Entity& s, glm::vec2 uv) {
   bool wrapped_u = false, wrapped_v = false;
   if (s.has_component<TorusComponent>()) {
