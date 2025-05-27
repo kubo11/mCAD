@@ -132,6 +132,7 @@ class CadLayer : public mge::Layer {
   // Intersection events
   bool on_find_intersection_starting_point(FindIntersectionStartingPointEvent& event);
   bool on_find_intersection(FindIntersectionEvent& event);
+  bool on_convert_intersection_to_interp_curve(ConvertIntersectionToInterpCurveEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

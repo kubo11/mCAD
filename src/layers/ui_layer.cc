@@ -1017,7 +1017,9 @@ void UILayer::show_intersection_panel(const mge::Entity& entity) {
   // texture 1
   // texture 2
   if (ImGui::Button("To interp C2", ImVec2(120, 0))) {
-
+    m_selection_manager.unselect(entity.get_id());
+    ConvertIntersectionToInterpCurveEvent event(entity.get_id());
+    SendEvent(event);
   }
 }
 

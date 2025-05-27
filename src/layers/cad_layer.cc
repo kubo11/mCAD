@@ -294,6 +294,7 @@ void CadLayer::configure() {
   // Intersection events
   AddEventListener(IntersectionEvents::FindStartingPoint, CadLayer::on_find_intersection_starting_point, this);
   AddEventListener(IntersectionEvents::Find, CadLayer::on_find_intersection, this);
+  AddEventListener(IntersectionEvents::ConvertToInterCurve, CadLayer::on_convert_intersection_to_interp_curve, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -914,6 +915,23 @@ bool CadLayer::on_find_intersection(FindIntersectionEvent& event) {
   auto& entity = create_intersection(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2), points1, points2);
   mge::AddedEntityEvent add_event(entity.get_id());
   mge::SendEvent(add_event);
+  return true;
+}
+
+bool CadLayer::on_convert_intersection_to_interp_curve(ConvertIntersectionToInterpCurveEvent& event) {
+  auto& intersection = m_scene.get_entity(event.intersection);
+  std::vector<mge::EntityId> points;
+  for (const auto& pos : intersection.get_component<IntersectionComponent>().get_points()) {
+    points.push_back(create_point(pos).get_id());
+    mge::AddedEntityEvent add_event(points.back());
+    mge::SendEvent(add_event);
+  }
+  points.push_back(points.front());
+  auto& curve = create_bezier_curve_c2_interp(points);
+  mge::AddedEntityEvent add_event(curve.get_id());
+  mge::SendEvent(add_event);
+  m_to_be_destroyed.push_back(intersection.get_id());
+  
   return true;
 }
 

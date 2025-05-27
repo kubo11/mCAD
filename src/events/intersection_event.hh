@@ -3,7 +3,7 @@
 
 #include "mge.hh"
 
-enum class IntersectionEvents { FindStartingPoint, Find };
+enum class IntersectionEvents { FindStartingPoint, Find, ConvertToInterCurve };
 
 class FindIntersectionStartingPointEvent : public mge::Event<IntersectionEvents> {
  public:
@@ -27,6 +27,14 @@ class FindIntersectionEvent : public mge::Event<IntersectionEvents> {
   float newton_factor;
   float max_dist;
   bool rough;
+};
+
+class ConvertIntersectionToInterpCurveEvent : public mge::Event<IntersectionEvents> {
+ public:
+ ConvertIntersectionToInterpCurveEvent(mge::EntityId intersection)
+  : mge::Event<IntersectionEvents>(IntersectionEvents::ConvertToInterCurve, "ConvertIntersectionToInterpCurveEvent"), intersection(intersection) {}
+  
+  mge::EntityId intersection;
 };
 
 #endif // MCAD_INTERSECTION_EVENT

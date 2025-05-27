@@ -22,7 +22,7 @@ std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> IntersectionBuilder::f
   glm::vec3 t(0, 0, 0);
   bool found_first_bound = false;
   while (true) {
-    float step = max_dist;
+    float step = find_dist;
     float distance_now = infinity;
     glm::vec3 pos_r3 = get_surface_position(s1, uv_newton);
     bool out_of_bounds = false;
