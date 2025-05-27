@@ -4,7 +4,7 @@
 #include "components/bezier_surface_c2_component.hh"
 #include "components/torus_component.hh"
 
-std::pair<glm::vec2, glm::vec2> IntersectionBuilder::find_starting_point(mge::Entity& s1, mge::Entity& s2, std::optional<glm::vec3> beg = {}) {
+std::pair<glm::vec2, glm::vec2> IntersectionBuilder::find_starting_point(mge::Entity& s1, mge::Entity& s2, std::optional<glm::vec3> beg) {
   auto beg_point = beg.value_or(get_random_beg(s1, s2));
   auto uv = get_closest_point_on_surface(s1, beg_point);
   auto st = (s1 == s2) ? get_closest_point_on_surface_with_penalty(s2, beg_point, uv) : get_closest_point_on_surface(s2, beg_point);
@@ -241,7 +241,7 @@ std::pair<glm::vec2, glm::vec2> IntersectionBuilder::conjugate_gradient(mge::Ent
 
 glm::vec3 IntersectionBuilder::get_surface_position(mge::Entity& s, const glm::vec2& uv) {
   if (s.has_component<TorusComponent>()) {
-    return s.get_component<TorusComponent>().get_uv_pos(uv);
+    return s.get_component<mge::TransformComponent>().get_model_mat() * glm::vec4(s.get_component<TorusComponent>().get_uv_pos(uv), 1.0);
   }
   else if (s.has_component<BezierSurfaceC0Component>()) {
     return s.get_component<BezierSurfaceC0Component>().get_uv_pos(uv);
@@ -253,9 +253,11 @@ glm::vec3 IntersectionBuilder::get_surface_position(mge::Entity& s, const glm::v
   return {};
 }
 
-std::pair<glm::vec3, glm::vec3> get_surface_gradient(mge::Entity& s, const glm::vec2& uv) {
+std::pair<glm::vec3, glm::vec3> IntersectionBuilder::get_surface_gradient(mge::Entity& s, const glm::vec2& uv) {
   if (s.has_component<TorusComponent>()) {
-    return s.get_component<TorusComponent>().get_uv_grad(uv);
+    auto model = s.get_component<mge::TransformComponent>().get_model_mat();
+    auto grad = s.get_component<TorusComponent>().get_uv_grad(uv);
+    return {model * glm::vec4(grad.first, 0.0f), model * glm::vec4(grad.second, 0.0f)};
   }
   else if (s.has_component<BezierSurfaceC0Component>()) {
     return s.get_component<BezierSurfaceC0Component>().get_uv_grad(uv);

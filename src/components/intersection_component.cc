@@ -4,15 +4,17 @@
 #include "components/bezier_surface_c2_component.hh"
 #include "components/torus_component.hh"
 
+unsigned int IntersectionComponent::s_new_id = 1;
+
 glm::vec3 position(mge::Entity& e, glm::vec2 uv) {
   if (e.has_component<TorusComponent>()) {
     return e.get_component<mge::TransformComponent>().get_model_mat() * glm::vec4(e.get_component<TorusComponent>().get_uv_pos(uv), 1.0f);
   }
   else if (e.has_component<BezierSurfaceC0Component>()) {
-    return e.get_component<mge::TransformComponent>().get_model_mat() * glm::vec4(e.get_component<BezierSurfaceC0Component>().get_uv_pos(uv), 1.0f);
+    return e.get_component<BezierSurfaceC0Component>().get_uv_pos(uv);
   }
   else if (e.has_component<BezierSurfaceC2Component>()) {
-    return e.get_component<mge::TransformComponent>().get_model_mat() * glm::vec4(e.get_component<BezierSurfaceC2Component>().get_uv_pos(uv), 1.0f);
+    return e.get_component<BezierSurfaceC2Component>().get_uv_pos(uv);
   }
   return glm::vec3(0.0f);
 }

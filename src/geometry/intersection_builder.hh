@@ -17,18 +17,17 @@ class IntersectionBuilder {
   IntersectionBuilder() = default;
   ~IntersectionBuilder() = default;
 
-  static std::pair<glm::vec2, glm::vec2> find_starting_point(mge::Entity& s1, mge::Entity& s2, std::optional<glm::vec3> beg = {});
+  static std::pair<glm::vec2, glm::vec2> find_starting_point(mge::Entity& s1, mge::Entity& s2, std::optional<glm::vec3> beg = std::nullopt);
   static std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> find(mge::Entity& s1, mge::Entity& s2, const glm::vec2& uv, const glm::vec2& st, float newton_factor, float max_dist, bool rough);
+  static glm::vec3 get_surface_position(mge::Entity& s, const glm::vec2& uv);
 
  private:
   static glm::vec3 get_random_beg(mge::Entity& s1, mge::Entity& s2);
   static glm::vec2 get_closest_point_on_surface(mge::Entity& s, const glm::vec3& p);
   static glm::vec2 get_closest_point_on_surface_with_penalty(mge::Entity& s, const glm::vec3& p, const glm::vec2& penalizing_point);
   static std::pair<glm::vec2, glm::vec2> conjugate_gradient(mge::Entity& s1, mge::Entity& s2, glm::vec2 uv, glm::vec2 st);
-  static glm::vec3 get_surface_position(mge::Entity& s, const glm::vec2& uv);
   static std::pair<glm::vec3, glm::vec3> get_surface_gradient(mge::Entity& s, const glm::vec2& uv);
   static float penalty_function(glm::vec2 uv, glm::vec2 st);
-  static float normalize_parameter(float a, bool wrap);
   static glm::vec2 normalize_parametrization(mge::Entity& s, glm::vec2 uv);
   static bool are_parameters_normalized(mge::Entity& s, glm::vec2 uv);
   static glm::vec2 clamp_parameters(mge::Entity& s, glm::vec2 uv);
