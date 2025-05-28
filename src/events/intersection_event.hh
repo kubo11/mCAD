@@ -3,7 +3,7 @@
 
 #include "mge.hh"
 
-enum class IntersectionEvents { FindStartingPoint, Find, ConvertToInterCurve };
+enum class IntersectionEvents { FindStartingPoint, Find, ConvertToInterCurve, UpdateTrim };
 
 class FindIntersectionStartingPointEvent : public mge::Event<IntersectionEvents> {
  public:
@@ -35,6 +35,15 @@ class ConvertIntersectionToInterpCurveEvent : public mge::Event<IntersectionEven
   : mge::Event<IntersectionEvents>(IntersectionEvents::ConvertToInterCurve, "ConvertIntersectionToInterpCurveEvent"), intersection(intersection) {}
   
   mge::EntityId intersection;
+};
+
+class UpdateTrimEvent : public mge::Event<IntersectionEvents> {
+ public:
+ UpdateTrimEvent(mge::EntityId intersection, glm::vec2 uv)
+  : mge::Event<IntersectionEvents>(IntersectionEvents::UpdateTrim, "UpdateTrimEvent"), intersection(intersection), uv(uv) {}
+  
+  mge::EntityId intersection;
+  glm::vec2 uv;
 };
 
 #endif // MCAD_INTERSECTION_EVENT

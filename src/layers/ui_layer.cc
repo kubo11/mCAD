@@ -306,7 +306,9 @@ void UILayer::update() {
   ImGuizmo::SetOrthographic(false);
   ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
   ImGuizmo::SetRect(0, 0, size.x, size.y);
-  if (m_selection_manager.get_selected_count() > 0 &&  m_tool_manager.get_type() == ToolManager::Type::Select) {
+  auto ids = m_selection_manager.get_selected_parents_ids();
+  bool not_translatable = std::all_of(ids.begin(), ids.end(), [this](const auto& id) {return !m_scene.get_entity(id).template has_component<mge::TransformComponent>();});
+  if (m_selection_manager.get_selected_count() > 0 && !not_translatable && m_tool_manager.get_type() == ToolManager::Type::Select) {
     glm::mat4 model;
     m_scene.foreach<>(entt::get<MassCenterComponent>, entt::exclude<>, [&](mge::Entity& entity) {
       model = glm::translate(glm::mat4(1.0f), entity.get_component<MassCenterComponent>().get_position());
@@ -332,8 +334,8 @@ void UILayer::update() {
   }
 
 
-  ImGui::SetNextWindowSize({std::min(size.x * 0.25f, 250.0f), size.y});
-  ImGui::SetNextWindowPos({std::max(size.x * 0.75f, size.x - 250.f), 0});
+  ImGui::SetNextWindowSize({std::min(size.x * 0.25f, 280.0f), size.y});
+  ImGui::SetNextWindowPos({std::max(size.x * 0.75f, size.x - 280.f), 0});
   ImGui::Begin("ToolsParams", nullptr,
                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 
@@ -1014,8 +1016,32 @@ void UILayer::show_gregory_patch_panel(const mge::Entity& entity) {
 }
 
 void UILayer::show_intersection_panel(const mge::Entity& entity) {
+  auto [id1, id2] = entity.get_component<IntersectionComponent>().get_texture_ids();
+  ImVec2 image_size = ImVec2(256, 256);
   // texture 1
+  ImGui::Image((ImTextureID)(intptr_t)id1, image_size);
+  if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+    ImVec2 mouse_pos = ImGui::GetMousePos();
+    ImVec2 image_pos = ImGui::GetItemRectMin();
+
+    ImVec2 relative_pos = ImVec2((mouse_pos.x - image_pos.x) / image_size.x, (mouse_pos.y - image_pos.y) / image_size.y);
+
+    printf("Clicked at (%.1f, %.1f) relative to image 1\n", relative_pos.x, relative_pos.y);
+  }
+  
   // texture 2
+  if (id2 > 0) {
+    ImGui::Image((ImTextureID)(intptr_t)id2, image_size);
+    if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+      ImVec2 mouse_pos = ImGui::GetMousePos();
+      ImVec2 image_pos = ImGui::GetItemRectMin();
+
+      ImVec2 relative_pos = ImVec2((mouse_pos.x - image_pos.x) / image_size.x, (mouse_pos.y - image_pos.y) / image_size.y);
+
+      printf("Clicked at (%.1f, %.1f) relative to image 2\n", relative_pos.x, relative_pos.y);
+    }
+  }
+
   if (ImGui::Button("To interp C2", ImVec2(120, 0))) {
     m_selection_manager.unselect(entity.get_id());
     ConvertIntersectionToInterpCurveEvent event(entity.get_id());
