@@ -1025,6 +1025,8 @@ void UILayer::show_intersection_panel(const mge::Entity& entity) {
     ImVec2 image_pos = ImGui::GetItemRectMin();
 
     ImVec2 relative_pos = ImVec2((mouse_pos.x - image_pos.x) / image_size.x, (mouse_pos.y - image_pos.y) / image_size.y);
+    UpdateTrimEvent event(entity.get_id(), glm::vec2(relative_pos.x, relative_pos.y), true);
+    SendEvent(event);
 
     printf("Clicked at (%.1f, %.1f) relative to image 1\n", relative_pos.x, relative_pos.y);
   }
@@ -1037,6 +1039,8 @@ void UILayer::show_intersection_panel(const mge::Entity& entity) {
       ImVec2 image_pos = ImGui::GetItemRectMin();
 
       ImVec2 relative_pos = ImVec2((mouse_pos.x - image_pos.x) / image_size.x, (mouse_pos.y - image_pos.y) / image_size.y);
+      UpdateTrimEvent event(entity.get_id(), glm::vec2(relative_pos.x, relative_pos.y), false);
+      SendEvent(event);
 
       printf("Clicked at (%.1f, %.1f) relative to image 2\n", relative_pos.x, relative_pos.y);
     }

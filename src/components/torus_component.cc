@@ -2,8 +2,8 @@
 
 unsigned int TorusComponent::s_new_id = 1;
 
-std::vector<GeometryVertex> TorusComponent::generate_geometry() const {
-  std::vector<GeometryVertex> vertices(m_vertical_density * m_horizontal_density);
+std::vector<PosUvVertex> TorusComponent::generate_geometry() const {
+  std::vector<PosUvVertex> vertices(m_vertical_density * m_horizontal_density);
 
   float ds = 2 * glm::pi<float>() / m_vertical_density;
   float dt = 2 * glm::pi<float>() / m_horizontal_density;
@@ -14,7 +14,7 @@ std::vector<GeometryVertex> TorusComponent::generate_geometry() const {
       float c = m_inner_radius * std::cos(t) + m_outer_radius;
 
       vertices[j * m_horizontal_density + i] =
-          GeometryVertex(glm::vec3{std::sin(s) * c, m_inner_radius * std::sin(t), std::cos(s) * c});
+          PosUvVertex(glm::vec3{std::sin(s) * c, m_inner_radius * std::sin(t), std::cos(s) * c}, glm::vec2{static_cast<float>(i)/static_cast<float>(m_vertical_density), static_cast<float>(j)/static_cast<float>(m_horizontal_density)});
     }
   }
 

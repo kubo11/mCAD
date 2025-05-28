@@ -119,3 +119,35 @@ std::pair<glm::vec2, glm::vec2> IntersectionComponent::get_most_probable_loop(co
   }
   return { std::get<0>(best), std::get<1>(best) };
 }
+
+void IntersectionComponent::use_texture_for(const mge::Entity& intersectable, int slot) {
+  if (m_intersectable1 == intersectable) {
+    m_texture1.use(slot);
+  }
+  else if (m_intersectable2 == intersectable) {
+    m_texture2.use(slot);
+  }
+}
+
+void IntersectionComponent::update_trim(glm::vec2 uv, bool first) {
+  if (first) {
+    update_trim(uv, m_canvas1, m_texture1);
+  }
+  else {
+    update_trim(uv, m_canvas2, m_texture2);
+  }
+}
+
+void IntersectionComponent::update_trim(glm::vec2 uv, mge::Canvas& canvas, mge::Texture& texture) {
+  if (canvas.get_pixel(uv) == mge::Color::Black) return;
+
+  if (canvas.get_pixel(uv) == mge::Color::White) {
+    canvas.set_color(mge::Color::Red);
+  } else {
+    canvas.set_color(mge::Color::White);
+  }
+
+  canvas.flood_fill(uv);
+  texture.use();
+  texture.copy(canvas.get_data());
+}

@@ -39,11 +39,12 @@ class ConvertIntersectionToInterpCurveEvent : public mge::Event<IntersectionEven
 
 class UpdateTrimEvent : public mge::Event<IntersectionEvents> {
  public:
- UpdateTrimEvent(mge::EntityId intersection, glm::vec2 uv)
-  : mge::Event<IntersectionEvents>(IntersectionEvents::UpdateTrim, "UpdateTrimEvent"), intersection(intersection), uv(uv) {}
+ UpdateTrimEvent(mge::EntityId intersection, glm::vec2 uv, bool first)
+  : mge::Event<IntersectionEvents>(IntersectionEvents::UpdateTrim, "UpdateTrimEvent"), intersection(intersection), uv(uv), first(first) {}
   
   mge::EntityId intersection;
   glm::vec2 uv;
+  bool first;
 };
 
 #endif // MCAD_INTERSECTION_EVENT
