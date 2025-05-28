@@ -6,6 +6,8 @@ uniform mat4 projection_view;
 uniform int line_count;
 uniform bool flip_uv;
 
+layout(location = 0) out vec2 patchUV;
+
 vec3 bezier2(vec3 a, vec3 b, float t) { return mix(a, b, t); }
 
 vec3 bezier3(vec3 a, vec3 b, vec3 c, float t) { return mix(bezier2(a, b, t), bezier2(b, c, t), t); }
@@ -28,4 +30,5 @@ void main() {
     bezierV[i] = bezier4(gl_in[4 * i].gl_Position.xyz, gl_in[4 * i + 1].gl_Position.xyz, gl_in[4 * i + 2].gl_Position.xyz, gl_in[4 * i + 3].gl_Position.xyz, u);
   }
   gl_Position = projection_view * vec4(bezier4(bezierV[0], bezierV[1], bezierV[2], bezierV[3], v), 1);
+  patchUV = vec2(u, v);
 }

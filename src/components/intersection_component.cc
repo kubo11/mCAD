@@ -46,7 +46,9 @@ bool wrap_y(mge::Entity& e) {
 }
 
 IntersectionComponent::IntersectionComponent(mge::Entity& intersectable1, mge::Entity& intersectable2, const std::vector<glm::vec2>& points1, const std::vector<glm::vec2>& points2)
- : m_intersectable1{intersectable1}, m_intersectable2{intersectable2}, m_points{}, m_texture1{{256, 256}}, m_texture2{{256, 256}}, m_canvas1{{256, 256}, mge::Color::White, wrap_x(intersectable1), wrap_y(intersectable1)}, m_canvas2{{256, 256}, mge::Color::White, wrap_x(intersectable2), wrap_y(intersectable2)} {
+ : m_intersectable1{intersectable1}, m_intersectable2{intersectable2}, m_points{}, m_texture1{{s_texture_size, s_texture_size}}, m_texture2{{s_texture_size, s_texture_size}}, 
+    m_canvas1{{s_texture_size, s_texture_size}, mge::Color::White, wrap_x(intersectable1), wrap_y(intersectable1)},\
+    m_canvas2{{s_texture_size, s_texture_size}, mge::Color::White, wrap_x(intersectable2), wrap_y(intersectable2)} {
   m_points.reserve(points1.size());
   for (const auto& point : points1) {
     m_points.push_back(position(intersectable1, point));
@@ -118,4 +120,94 @@ std::pair<glm::vec2, glm::vec2> IntersectionComponent::get_most_probable_loop(co
     }
   }
   return { std::get<0>(best), std::get<1>(best) };
+}
+
+void IntersectionComponent::use_texture_for(const mge::Entity& intersectable, int slot) {
+  if (m_intersectable1 == intersectable) {
+    m_texture1.use(slot);
+  }
+  else if (m_intersectable2 == intersectable) {
+    m_texture2.use(slot);
+  }
+}
+
+void IntersectionComponent::update_trim(glm::vec2 uv, bool first) {
+  if (first) {
+    update_trim(uv, m_canvas1, m_texture1);
+    if (m_hide_points_status) {
+      if (m_intersectable1.has_component<BezierSurfaceC0Component>()) {
+        m_intersectable1.patch<BezierSurfaceC0Component>([&canvas=m_canvas1](auto& bezier) {bezier.update_points_status(canvas);});
+      }
+      else if (m_intersectable1.has_component<BezierSurfaceC2Component>()) {
+        m_intersectable1.patch<BezierSurfaceC2Component>([&canvas=m_canvas1](auto& bezier) {bezier.update_points_status(canvas);});
+      }
+    }
+  }
+  else {
+    update_trim(uv, m_canvas2, m_texture2);
+    if (m_hide_points_status) {
+      if (m_intersectable2.has_component<BezierSurfaceC0Component>()) {
+        m_intersectable2.patch<BezierSurfaceC0Component>([&canvas=m_canvas2](auto& bezier) {bezier.update_points_status(canvas);});
+      }
+      else if (m_intersectable2.has_component<BezierSurfaceC2Component>()) {
+        m_intersectable2.patch<BezierSurfaceC2Component>([&canvas=m_canvas2](auto& bezier) {bezier.update_points_status(canvas);});
+      }
+    }
+  }
+}
+
+void IntersectionComponent::update_trim(glm::vec2 uv, mge::Canvas& canvas, mge::Texture& texture) {
+  if (canvas.get_pixel(uv) == mge::Color::Black) return;
+
+  if (canvas.get_pixel(uv) == mge::Color::White) {
+    canvas.set_color(mge::Color::Red);
+  } else {
+    canvas.set_color(mge::Color::White);
+  }
+
+  canvas.flood_fill(uv);
+  texture.use();
+  texture.copy(canvas.get_data());
+}
+
+bool IntersectionComponent::get_hide_points_status() const {
+  return m_hide_points_status;
+}
+
+void IntersectionComponent::set_hide_points_status(bool status) {
+  if (m_hide_points_status == status) return;
+  m_hide_points_status = status;
+  if (!m_intersectable1.has_component<TorusComponent>()) {
+    update_points_status(m_intersectable1, m_canvas1);
+  }
+  if (m_intersectable1 != m_intersectable2 && !m_intersectable2.has_component<TorusComponent>()) {
+    update_points_status(m_intersectable2, m_canvas2);
+  }
+}
+
+void IntersectionComponent::update_points_status(mge::Entity& intersectable, mge::Canvas& canvas) {
+  if (intersectable.has_component<BezierSurfaceC0Component>()) {
+    if (m_hide_points_status) {
+      intersectable.patch<BezierSurfaceC0Component>([&canvas](auto& surface){
+        surface.update_points_status(canvas);
+      });
+    }
+    else {
+      intersectable.patch<BezierSurfaceC0Component>([](auto& surface){
+        surface.show_all_points();
+      });
+    }
+  }
+  else if (intersectable.has_component<BezierSurfaceC2Component>()) {
+    if (m_hide_points_status) {
+      intersectable.patch<BezierSurfaceC2Component>([&canvas](auto& surface){
+        surface.update_points_status(canvas);
+      });
+    }
+    else {
+      intersectable.patch<BezierSurfaceC2Component>([](auto& surface){
+        surface.show_all_points();
+      });
+    }
+  }
 }

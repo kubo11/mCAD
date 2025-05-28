@@ -7,6 +7,7 @@
 #include "../vertices/bezier_curve_c2_interp_vertex.hh"
 #include "../vertices/cursor_vertex.hh"
 #include "../vertices/geometry_vertex.hh"
+#include "../vertices/pos_uv_vertex.hh"
 #include "../vertices/point_vertex.hh"
 #include "../geometry/intersection_builder.hh"
 #include "../geometry/gregory_patch_builder.hh"
@@ -52,8 +53,8 @@ class CadLayer : public mge::Layer {
   std::reference_wrapper<mge::Entity> m_mass_center;
   glm::vec2 m_window_size;
   std::vector<mge::EntityId> m_to_be_destroyed;
-  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_geometry_wireframe_pipeline = nullptr;
-  std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_geometry_solid_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<PosUvVertex>> m_geometry_wireframe_pipeline = nullptr;
+  std::unique_ptr<mge::RenderPipeline<PosUvVertex>> m_geometry_solid_pipeline = nullptr;
   std::unique_ptr<mge::InstancedRenderPipeline<GeometryVertex, PointInstancedVertex>> m_point_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<GeometryVertex>> m_bezier_pipeline = nullptr;
   std::unique_ptr<mge::RenderPipeline<BezierCurveC2InterpVertex>> m_bezier_c2_interp_pipeline = nullptr;
@@ -133,6 +134,8 @@ class CadLayer : public mge::Layer {
   bool on_find_intersection_starting_point(FindIntersectionStartingPointEvent& event);
   bool on_find_intersection(FindIntersectionEvent& event);
   bool on_convert_intersection_to_interp_curve(ConvertIntersectionToInterpCurveEvent& event);
+  bool on_update_trim(UpdateTrimEvent& event);
+  bool on_update_hide_points_status(UpdateHidePointsStatusEvent& event);
   // Cursor events
   bool on_cursor_move(CursorMoveEvent& event);
   // Transform events

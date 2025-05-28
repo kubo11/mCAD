@@ -1,5 +1,6 @@
 #include "bezier_surface_component.hh"
 #include "selectible_component.hh"
+#include "../vertices/point_vertex.hh"
 
 BezierSurfaceComponent::BezierSurfaceComponent(unsigned int patch_count_u, unsigned int patch_count_v,
                                                BezierSurfaceWrapping wrapping, mge::Entity& self, mge::Entity& grid)
@@ -72,6 +73,36 @@ void BezierSurfaceComponent::swap_points(mge::Entity& old_point, mge::Entity& ne
         update_surface(new_point);
         return;
       }
+    }
+  }
+}
+
+void BezierSurfaceComponent::update_points_status(mge::Canvas& canvas) {
+  for (int i = 0; i < m_point_count_u; ++i) {
+    for (int j = 0; j < m_point_count_v; ++j) {
+      auto u = static_cast<float>(i) / static_cast<float>(m_point_count_u-1);
+      auto v = static_cast<float>(j) / static_cast<float>(m_point_count_v-1);
+
+      auto color = canvas.get_pixel(glm::vec2{u, v});
+      
+      m_points[j][i].second.get().patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>([&color](auto& renderable){
+        if (color == mge::Color::White || color == mge::Color::Black) {
+          renderable.enable();
+        }
+        else {
+          renderable.disable();
+        }
+      });
+    }
+  }
+}
+
+void BezierSurfaceComponent::show_all_points() {
+  for (auto& row : m_points) {
+    for (auto& [_, point] : row) {
+      point.get().patch<mge::InstancedRenderableComponent<GeometryVertex, PointInstancedVertex>>([](auto& renderable){
+        renderable.enable();
+      });
     }
   }
 }

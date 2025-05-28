@@ -42,13 +42,13 @@ void CadLayer::configure() {
         auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
-  m_geometry_solid_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::TRIANGLE));
+  m_geometry_solid_pipeline = std::move(pipeline_builder.build<PosUvVertex>(mge::DrawPrimitiveType::TRIANGLE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "solid" / "wireframe"))
       .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
         auto& camera = scene.get_current_camera();
         return camera.get_projection_matrix() * camera.get_view_matrix();
       });
-  m_geometry_wireframe_pipeline = std::move(pipeline_builder.build<GeometryVertex>(mge::DrawPrimitiveType::LINE));
+  m_geometry_wireframe_pipeline = std::move(pipeline_builder.build<PosUvVertex>(mge::DrawPrimitiveType::LINE));
   pipeline_builder.add_shader_program(mge::ShaderSystem::acquire(base_shader_path / "ui" / "cursor"))
       .add_uniform_update<glm::mat4>("projection_view", [&scene = m_scene]() {
         auto& camera = scene.get_current_camera();
@@ -295,6 +295,8 @@ void CadLayer::configure() {
   AddEventListener(IntersectionEvents::FindStartingPoint, CadLayer::on_find_intersection_starting_point, this);
   AddEventListener(IntersectionEvents::Find, CadLayer::on_find_intersection, this);
   AddEventListener(IntersectionEvents::ConvertToInterCurve, CadLayer::on_convert_intersection_to_interp_curve, this);
+  AddEventListener(IntersectionEvents::UpdateTrim, CadLayer::on_update_trim, this);
+  AddEventListener(IntersectionEvents::UpdateHidePointsStatus, CadLayer::on_update_hide_points_status, this);
   // Cursor events
   AddEventListener(CursorEvents::Move, CadLayer::on_cursor_move, this);
   // Transform events
@@ -641,7 +643,7 @@ bool CadLayer::on_torus_radius_updated(TorusRadiusUpdatedEvent& event) {
     torus.set_outer_radius(event.outer_radius);
   });
   auto& torus = entity.get_component<TorusComponent>();
-  entity.patch<mge::RenderableComponent<GeometryVertex>>([&torus](auto& renderable) {
+  entity.patch<mge::RenderableComponent<PosUvVertex>>([&torus](auto& renderable) {
     auto vertices = torus.generate_geometry();
     auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
     vertex_buffer.bind();
@@ -658,7 +660,7 @@ bool CadLayer::on_torus_grid_density_updated(TorusGridDensityUpdatedEvent& event
     torus.set_vertical_density(event.outer_density);
   });
   auto& torus = entity.get_component<TorusComponent>();
-  entity.patch<mge::RenderableComponent<GeometryVertex>>([&torus](auto& renderable) {
+  entity.patch<mge::RenderableComponent<PosUvVertex>>([&torus](auto& renderable) {
     auto vertices = torus.generate_geometry();
     auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
     vertex_buffer.bind();
@@ -935,6 +937,22 @@ bool CadLayer::on_convert_intersection_to_interp_curve(ConvertIntersectionToInte
   return true;
 }
 
+bool CadLayer::on_update_trim(UpdateTrimEvent& event) {
+  auto& intersection_entity = m_scene.get_entity(event.intersection);
+  intersection_entity.patch<IntersectionComponent>([uv=event.uv, first=event.first](auto& intersection_component){
+      intersection_component.update_trim(uv, first);
+  });
+  return true;
+}
+
+bool CadLayer::on_update_hide_points_status(UpdateHidePointsStatusEvent& event) {
+  auto& intersection_entity = m_scene.get_entity(event.intersection);
+  intersection_entity.patch<IntersectionComponent>([status=event.status](auto& intersection){
+    intersection.set_hide_points_status(status);
+  });
+  return true;
+}
+
 bool CadLayer::on_cursor_move(CursorMoveEvent& event) {
   m_cursor.get().patch<mge::TransformComponent>(
       [this, &event](auto& transform) { transform.set_position(unproject_point(event.screen_space_position)); });
@@ -1045,11 +1063,11 @@ bool CadLayer::on_tag_updated(mge::TagUpdateEvent& event) {
 
 bool CadLayer::on_render_mode_updated(mge::RenderModeUpdatedEvent& event) {
   auto& entity = m_scene.get_entity(event.id);
-  entity.patch<mge::RenderableComponent<GeometryVertex>>(
+  entity.patch<mge::RenderableComponent<PosUvVertex>>(
       [&event](auto& renderable) { renderable.set_render_mode(event.render_mode); });
   if (entity.has_component<TorusComponent>()) {
     auto& torus = entity.get_component<TorusComponent>();
-    entity.patch<mge::RenderableComponent<GeometryVertex>>([&torus](auto& renderable) {
+    entity.patch<mge::RenderableComponent<PosUvVertex>>([&torus](auto& renderable) {
       auto vertices = torus.generate_geometry();
       auto& vertex_buffer = renderable.get_vertex_array().get_vertex_buffer();
       vertex_buffer.bind();
@@ -1163,7 +1181,7 @@ mge::Entity& CadLayer::create_torus(const glm::vec3& pos, float inner_radius, fl
   entity.template add_component<SelectibleComponent>();
   entity.template add_component<ColorComponent>();
   auto vertices = entity.get_component<TorusComponent>().generate_geometry();
-  auto vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
+  auto vertex_buffer = std::make_unique<mge::Buffer<PosUvVertex>>();
   vertex_buffer->bind();
   vertex_buffer->copy(vertices);
   vertex_buffer->unbind();
@@ -1172,16 +1190,24 @@ mge::Entity& CadLayer::create_torus(const glm::vec3& pos, float inner_radius, fl
   element_buffer->bind();
   element_buffer->copy(indices);
   element_buffer->unbind();
-  auto vertex_array = std::make_unique<mge::VertexArray<GeometryVertex>>(
-      std::move(vertex_buffer), GeometryVertex::get_vertex_attributes(), std::move(element_buffer));
-  entity.template add_component<mge::RenderableComponent<GeometryVertex>>(
-      mge::RenderPipelineMap<GeometryVertex>{{mge::RenderMode::WIREFRAME, *m_geometry_wireframe_pipeline},
+  auto vertex_array = std::make_unique<mge::VertexArray<PosUvVertex>>(
+      std::move(vertex_buffer), PosUvVertex::get_vertex_attributes(), std::move(element_buffer));
+  entity.template add_component<mge::RenderableComponent<PosUvVertex>>(
+      mge::RenderPipelineMap<PosUvVertex>{{mge::RenderMode::WIREFRAME, *m_geometry_wireframe_pipeline},
                                              {mge::RenderMode::SOLID, *m_geometry_solid_pipeline}},
       mge::RenderMode::WIREFRAME, std::move(vertex_array), [&entity](auto& render_pipeline) {
         render_pipeline.template dynamic_uniform_update_and_commit<glm::mat4>(
             "model", [&entity]() { return entity.get_component<mge::TransformComponent>().get_model_mat(); });
         render_pipeline.template dynamic_uniform_update_and_commit<glm::vec3>(
             "color", [&entity]() { return entity.get_component<ColorComponent>().get_color(); });
+        auto parent = std::find_if(entity.get_parents().begin(), entity.get_parents().end(), [](const auto& parent) { return parent.get().template has_component<IntersectionComponent>(); });
+        bool useTexture = parent != entity.get_parents().end();
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("useTexture", [&useTexture]() { return static_cast<int>(useTexture); });
+        if (useTexture) {
+          parent->get().template patch<IntersectionComponent>([&entity](auto& intersection_component){
+            intersection_component.use_texture_for(entity, 0);
+          });
+        }
       });
   return entity;
 }
@@ -1375,6 +1401,14 @@ mge::Entity& CadLayer::create_bezier_surface_c0(const glm::vec3& pos, BezierSurf
         render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&bezier_entity]() {
           return bezier_entity.get_component<BezierSurfaceC0Component>().get_line_count();
         });
+        auto parent = std::find_if(bezier_entity.get_parents().begin(), bezier_entity.get_parents().end(), [](const auto& parent) { return parent.get().template has_component<IntersectionComponent>(); });
+        bool useTexture = parent != bezier_entity.get_parents().end();
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("useTexture", [&useTexture]() { return static_cast<int>(useTexture); });
+        if (useTexture) {
+          parent->get().template patch<IntersectionComponent>([&bezier_entity](auto& intersection_component){
+            intersection_component.use_texture_for(bezier_entity, 0);
+          });
+        }
       });
   auto grid_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   grid_vertex_buffer->bind();
@@ -1447,6 +1481,20 @@ mge::Entity& CadLayer::create_bezier_surface_c0(const std::vector<std::vector<mg
         render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&bezier_entity]() {
           return bezier_entity.get_component<BezierSurfaceC0Component>().get_line_count();
         });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("width", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC0Component>().get_patch_count_u();
+        });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("height", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC0Component>().get_patch_count_v();
+        });
+        auto parent = std::find_if(bezier_entity.get_parents().begin(), bezier_entity.get_parents().end(), [](const auto& parent) { return parent.get().template has_component<IntersectionComponent>(); });
+        bool useTexture = parent != bezier_entity.get_parents().end();
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("useTexture", [&useTexture]() { return static_cast<int>(useTexture); });
+        if (useTexture) {
+          parent->get().template patch<IntersectionComponent>([&bezier_entity](auto& intersection_component){
+            intersection_component.use_texture_for(bezier_entity, 0);
+          });
+        }
       });
   auto grid_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   grid_vertex_buffer->bind();
@@ -1512,6 +1560,20 @@ mge::Entity& CadLayer::create_bezier_surface_c2(const glm::vec3& pos, BezierSurf
         render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&bezier_entity]() {
           return bezier_entity.get_component<BezierSurfaceC2Component>().get_line_count();
         });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("width", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC2Component>().get_patch_count_u();
+        });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("height", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC2Component>().get_patch_count_v();
+        });
+        auto parent = std::find_if(bezier_entity.get_parents().begin(), bezier_entity.get_parents().end(), [](const auto& parent) { return parent.get().template has_component<IntersectionComponent>(); });
+        bool useTexture = parent != bezier_entity.get_parents().end();
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("useTexture", [&useTexture]() { return static_cast<int>(useTexture); });
+        if (useTexture) {
+          parent->get().template patch<IntersectionComponent>([&bezier_entity](auto& intersection_component){
+            intersection_component.use_texture_for(bezier_entity, 0);
+          });
+        }
       });
   auto grid_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   grid_vertex_buffer->bind();
@@ -1584,6 +1646,20 @@ mge::Entity& CadLayer::create_bezier_surface_c2(const std::vector<std::vector<mg
         render_pipeline.template dynamic_uniform_update_and_commit<int>("line_count", [&bezier_entity]() {
           return bezier_entity.get_component<BezierSurfaceC2Component>().get_line_count();
         });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("width", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC2Component>().get_patch_count_u();
+        });
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("height", [&bezier_entity]() {
+          return bezier_entity.get_component<BezierSurfaceC2Component>().get_patch_count_v();
+        });
+        auto parent = std::find_if(bezier_entity.get_parents().begin(), bezier_entity.get_parents().end(), [](const auto& parent) { return parent.get().template has_component<IntersectionComponent>(); });
+        bool useTexture = parent != bezier_entity.get_parents().end();
+        render_pipeline.template dynamic_uniform_update_and_commit<int>("useTexture", [&useTexture]() { return static_cast<int>(useTexture); });
+        if (useTexture) {
+          parent->get().template patch<IntersectionComponent>([&bezier_entity](auto& intersection_component){
+            intersection_component.use_texture_for(bezier_entity, 0);
+          });
+        }
       });
   auto grid_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   grid_vertex_buffer->bind();
@@ -1675,9 +1751,13 @@ mge::Entity& CadLayer::create_intersection(mge::Entity& intersectable1, mge::Ent
   curve_vertices.push_back(curve_vertices.front());
   auto& intersection_entity = m_scene.create_entity();
   intersection_entity.add_component<mge::TagComponent>(IntersectionComponent::get_new_name());
-  intersection_entity.add_component<SelectibleComponent>();
+  intersection_entity.add_component<SelectibleComponent>(glm::vec3{1.0f, 0.0f, 1.0f});
   intersection_entity.add_component<ColorComponent>();
   intersection_entity.add_component<IntersectionComponent>(intersectable1, intersectable2, points1, points2);
+  intersection_entity.add_child(intersectable1);
+  if (intersectable1 != intersectable2) {
+    intersection_entity.add_child(intersectable2);
+  }
   auto curve_vertex_buffer = std::make_unique<mge::Buffer<GeometryVertex>>();
   curve_vertex_buffer->bind();
   curve_vertex_buffer->copy(curve_vertices);

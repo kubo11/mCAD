@@ -303,6 +303,8 @@ void UILayer::update() {
 
   auto size = ImGui::GetMainViewport()->Size;
 
+  ImGuizmo::Enable(!m_show_gregory_creator && !m_show_intersection_builder);
+
   ImGuizmo::SetOrthographic(false);
   ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
   ImGuizmo::SetRect(0, 0, size.x, size.y);
@@ -520,7 +522,13 @@ void UILayer::show_find_intersection_window() {
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize;
   static glm::vec2 uv = {-1.0f, -1.0f}, st = {-1.0f, -1.0f};
   static float accuracy = 0.00001f, newton_factor = 0.167f;
-  static bool rough = false, cursor = true;
+  static bool rough = false, cursor = false;
+
+  if (!m_show_intersection_builder) {
+    uv = {-1.0f, -1.0f};
+    st = {-1.0f, -1.0f};
+    return;
+  }
 
   if (ImGui::Begin("IntersectionBuilder", &m_show_intersection_builder, flags)) {
     bool intersectable_selected = m_selection_manager.get_parent_count() > 0 && m_selection_manager.get_parent_count() < 3;
@@ -1000,6 +1008,7 @@ void UILayer::show_gregory_patch_panel(const mge::Entity& entity) {
   auto& component = entity.get_component<GregoryPatchComponent>();
   std::array<std::string, 2> options = {"yes", "no"};
   static int selected = 1;
+  selected = !component.get_vectors_status();
   if (ImGui::BeginCombo("##vectors", options[selected].c_str())) {
     for (int n = 0; n < options.size(); n++) {
       const bool is_selected = component.get_vectors_status() && !n || !component.get_vectors_status() && n;
@@ -1025,8 +1034,8 @@ void UILayer::show_intersection_panel(const mge::Entity& entity) {
     ImVec2 image_pos = ImGui::GetItemRectMin();
 
     ImVec2 relative_pos = ImVec2((mouse_pos.x - image_pos.x) / image_size.x, (mouse_pos.y - image_pos.y) / image_size.y);
-
-    printf("Clicked at (%.1f, %.1f) relative to image 1\n", relative_pos.x, relative_pos.y);
+    UpdateTrimEvent event(entity.get_id(), glm::vec2(relative_pos.x, relative_pos.y), true);
+    SendEvent(event);
   }
   
   // texture 2
@@ -1037,14 +1046,20 @@ void UILayer::show_intersection_panel(const mge::Entity& entity) {
       ImVec2 image_pos = ImGui::GetItemRectMin();
 
       ImVec2 relative_pos = ImVec2((mouse_pos.x - image_pos.x) / image_size.x, (mouse_pos.y - image_pos.y) / image_size.y);
-
-      printf("Clicked at (%.1f, %.1f) relative to image 2\n", relative_pos.x, relative_pos.y);
+      UpdateTrimEvent event(entity.get_id(), glm::vec2(relative_pos.x, relative_pos.y), false);
+      SendEvent(event);
     }
   }
 
   if (ImGui::Button("To interp C2", ImVec2(120, 0))) {
     m_selection_manager.unselect(entity.get_id());
     ConvertIntersectionToInterpCurveEvent event(entity.get_id());
+    SendEvent(event);
+  }
+
+  bool hide_control_points = entity.get_component<IntersectionComponent>().get_hide_points_status();
+  if (ImGui::Checkbox("Hide control points", &hide_control_points)) {
+    UpdateHidePointsStatusEvent event(entity.get_id(), hide_control_points);
     SendEvent(event);
   }
 }
@@ -1123,7 +1138,7 @@ void UILayer::show_tools_panel() {
   if (ImGui::Button("intersection")) {
     m_show_intersection_builder = true;
   }
-  if (m_show_intersection_builder) show_find_intersection_window();
+  show_find_intersection_window();
 }
 
 void UILayer::show_entities_list_panel() {

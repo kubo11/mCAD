@@ -3,7 +3,7 @@
 
 #include "mge.hh"
 
-#include "../vertices/geometry_vertex.hh"
+#include "../vertices/pos_uv_vertex.hh"
 
 struct TorusComponent {
   TorusComponent(float inner_radius = 4.0f, float outer_radius = 6.0f, unsigned int horizontal_density = 8,
@@ -48,7 +48,7 @@ struct TorusComponent {
 
   static std::string get_new_name() { return "Torus " + std::to_string(s_new_id++); }
 
-  std::vector<GeometryVertex> generate_geometry() const;
+  std::vector<PosUvVertex> generate_geometry() const;
   template <mge::RenderMode mode>
   std::vector<unsigned int> generate_topology() const;
 
