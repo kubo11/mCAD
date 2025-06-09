@@ -76,35 +76,31 @@ std::vector<unsigned int> TorusComponent::generate_topology<mge::RenderMode::SOL
 
 // local space
 glm::vec3 TorusComponent::get_uv_pos(glm::vec2 uv) const {
-  const auto& u = uv.x, v = uv.y;
-  const auto& r = m_inner_radius, R = m_outer_radius;
-  return glm::rotate(glm::mat4(1.0), 2 * glm::pi<float>() * v, glm::vec3{0.0f, 1.0f, 0.0f}) * (glm::vec4(
-      R + r * std::cos(u * 2 * glm::pi<float>()),
-      r * std::sin(u * 2 * glm::pi<float>()),
-      0,
-      1
-  ));
+  return glm::rotate(glm::mat4(1.0f), 2.0f * glm::pi<float>() * uv.y, glm::vec3{0.0f, 1.0f, 0.0f}) * glm::vec4(
+    m_outer_radius + m_inner_radius * std::cos(uv.x * 2.0f * glm::pi<float>()),
+    m_inner_radius * std::sin(uv.x * 2.0f * glm::pi<float>()),
+    0.0f,
+    1.0f
+  );
 }
 
 // local space
 std::pair<glm::vec3, glm::vec3> TorusComponent::get_uv_grad(glm::vec2 uv) const {
-  const auto& u = uv.x, v = uv.y;
-  const auto& r = m_inner_radius, R = m_outer_radius;
-  auto cos2piu = std::cos(u * 2 * glm::pi<float>()),
-      cos2piv = std::cos(v * 2 * glm::pi<float>()),
-      sin2piu = std::sin(u * 2 * glm::pi<float>()),
-      sin2piv = std::sin(v * 2 * glm::pi<float>());
+  auto cos2piu = std::cos(uv.x * 2.0f * glm::pi<float>()),
+    cos2piv = std::cos(uv.y * 2.0f * glm::pi<float>()),
+    sin2piu = std::sin(uv.x * 2.0f * glm::pi<float>()),
+    sin2piv = std::sin(uv.y * 2.0f * glm::pi<float>());
   glm::vec4 gradu = {
-      cos2piv * (-r) * sin2piu * 2 * glm::pi<float>(),
-      r * cos2piu * 2 * glm::pi<float>(),
-      -sin2piv * (-r) * sin2piu * 2 * glm::pi<float>(),
-      0
+    cos2piv * (-m_inner_radius) * sin2piu * 2.0f * glm::pi<float>(),
+    m_inner_radius * cos2piu * 2.0f * glm::pi<float>(),
+    -sin2piv * (-m_inner_radius) * sin2piu * 2.0f * glm::pi<float>(),
+    0.0f
   };
   glm::vec4 gradv = {
-      -sin2piv * 2 * glm::pi<float>() * (R + r * cos2piu),
-      0,
-      -cos2piv * 2 * glm::pi<float>() * (R + r * cos2piu),
-      0
+    -sin2piv * 2.0f * glm::pi<float>() * (m_outer_radius + m_inner_radius * cos2piu),
+    0.0f,
+    -cos2piv * 2.0f * glm::pi<float>() * (m_outer_radius + m_inner_radius * cos2piu),
+    0.0f
   };
 
   return {gradu, gradv};

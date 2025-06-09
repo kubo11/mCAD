@@ -30,4 +30,60 @@ struct BezierSurfaceC2Component : public BezierSurfaceComponent {
   void create_points(float size_u, float size_v);
 };
 
+inline float deBoor_coef(int i, float t) {
+  float t2 = t * t;
+  float t3 = t2 * t;
+  switch(i) {
+  case -1:
+    return (-t3 + 3.0f * t2 - 3.0f * t + 1.0f) / 6.0f;
+  case 0:
+    return (3.0f * t3 - 6.0f * t2 + 4.0f) / 6.0f;
+  case 1:
+    return (-3.0f * t3 + 3.0f * t2 + 3.0f * t + 1.0f) / 6.0f;
+  case 2:
+  default:
+    return (t3) / 6.0f;
+  }
+}
+
+inline float deBoor_der(int i, float t) {
+  float t2der = 2.0f * t;
+  float t3der = 3.0f * t * t;
+  switch(i) {
+  case -1:
+    return (-t3der + 3.0f * t2der - 3.0f) / 6.0f;
+  case 0:
+    return (3.0f * t3der - 6.0f * t2der) / 6.0f;
+  case 1:
+    return (-3.0f * t3der + 3.0f * t2der + 3.0f) / 6.0f;
+  case 2:
+  default:
+    return (t3der) / 6.0f;
+  }
+}
+
+inline glm::vec3 c2_pos(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+  glm::vec3 result(0.0f, 0.0f, 0.0f);
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j)
+      result += deBoor_coef(i - 1, uv.x) * deBoor_coef(j - 1, uv.y) * patch[j * 4 + i];
+  return result;
+}
+
+inline glm::vec3 c2_grad_u(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+  glm::vec3 result(0.0f, 0.0f, 0.0f);
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j)
+      result += deBoor_der(i - 1, uv.x) * deBoor_coef(j - 1, uv.y) * patch[j * 4 + i];
+  return result;
+}
+
+inline glm::vec3 c2_grad_v(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+  glm::vec3 result(0.0f, 0.0f, 0.0f);
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j)
+      result += deBoor_coef(i - 1, uv.x) * deBoor_der(j - 1, uv.y) * patch[j * 4 + i];
+  return result;
+}
+
 #endif  // MCAD_GEOMETRY_BEZIER_SURFACE_C2_COMPONENT

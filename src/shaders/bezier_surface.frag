@@ -11,8 +11,8 @@ uniform int width, height;
 
 vec2 getSurfaceUV() {
   vec2 patchSize = vec2(1.0 / width, 1.0 / height);
-  ivec2 nthInPatch = ivec2(gl_PrimitiveID % width, gl_PrimitiveID / width);
-  return patchSize * nthInPatch + patchSize * patchUV;
+  ivec2 patchId = ivec2(gl_PrimitiveID % width, gl_PrimitiveID / width);
+  return patchSize * patchId + patchSize * patchUV;
 }
 
 void main() {

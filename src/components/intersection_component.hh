@@ -33,7 +33,7 @@ struct IntersectionComponent {
 
   static void tex_apply(mge::Canvas& c, mge::Texture& t, const std::vector<glm::vec2> &uv);
   static void tex_apply_same(mge::Canvas& c, mge::Texture& t, const std::vector<glm::vec2> &uv, const std::vector<glm::vec2> &st);
-  static std::pair<glm::vec2, glm::vec2> get_most_probable_loop(const std::vector<glm::vec2> &s_points, bool wrap_u, bool wrap_v);
+  static std::pair<glm::vec2, glm::vec2> find_loop_gap(const std::vector<glm::vec2> &points, bool wrap_u, bool wrap_v);
   void update_trim(glm::vec2 uv, mge::Canvas& canvas, mge::Texture& texture);
   void update_points_status(mge::Entity& intersectable, mge::Canvas& canvas);
 };

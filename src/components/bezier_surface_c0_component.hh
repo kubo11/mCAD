@@ -26,4 +26,49 @@ struct BezierSurfaceC0Component : public BezierSurfaceComponent {
   void create_points(float size_u, float size_v);
 };
 
+inline float bernstein3_coef(int i) {
+  return (i == 0 || i == 3) ? 1 : 3;
+}
+
+inline float bernstein2(int i, float t) {
+  if (i < 0 || i > 2) {
+    return 0;
+  }
+  if (i == 1) {
+    return 2 * t * (1 - t);
+  }
+  return pow(t, i) * pow(1 - t, 2 - i);
+}
+
+inline float bernstein3(int i, float t) {
+  if (i < 0 || i > 3) {
+    return 0;
+  }
+  return bernstein3_coef(i) * pow(t, i) * pow(1 - t, 3 - i);
+}
+
+inline glm::vec3 c0_pos(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+  glm::vec3 result(0.0f, 0.0f, 0.0f);
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j)
+      result += bernstein3(i, uv.x) * bernstein3(j, uv.y) * patch[j * 4 + i];
+  return result;
+}
+
+inline glm::vec3 c0_grad_u(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+  glm::vec3 result(0.0f, 0.0f, 0.0f);
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j)
+      result += 3 * (bernstein2(i - 1, uv.x) - bernstein2(i, uv.x)) * bernstein3(j, uv.y) * patch[j * 4 + i];
+  return result;
+}
+
+inline glm::vec3 c0_grad_v(glm::vec2 uv, glm::vec3 (&patch)[16]) {
+  glm::vec3 result(0.0f, 0.0f, 0.0f);
+  for(int i = 0; i < 4; ++i)
+    for(int j = 0; j < 4; ++j)
+      result += bernstein3(i, uv.x) * 3.0f * (bernstein2(j - 1, uv.y) - bernstein2(j, uv.y)) * patch[j * 4 + i];
+  return result;
+}
+
 #endif  // MCAD_GEOMETRY_BEZIER_SURFACE_C0_COMPONENT

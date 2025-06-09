@@ -5,14 +5,15 @@
 
 class IntersectionBuilder {
  public:
-  static constexpr int subd_outer = 40, subd_inner = 40;
-  static constexpr float subd_accuracy = 0.0001, same_penalty_max = 60, same_penalty_len = 0.2;
-  static constexpr int conj_grad_max_iter = 1500, conj_grad_max_iter_slow_error_change = 50;
-  static constexpr float conj_grad_step = 0.01, conj_grad_accuracy = 0.0000033;
-  static constexpr int find_newton_iters = 150, find_max_points = 1e5;
-  static constexpr float find_max_pq_distance_in_self = 0.1, find_min_uv_st_distance_in_self = 0.01,
-          find_min_improvement = 0.001, find_min_step = 0.0001, infinity =
-                  std::numeric_limits<float>::infinity(), find_dist = 0.05;
+  static constexpr int s_surface_subdivision_count = 40, s_surface_subdivision_resolution = 80;
+  static constexpr float s_surface_closest_point_accuracy = 0.0001, s_max_penalty = 60, s_penalty_length = 0.2, s_min_parameter_dist= 0.02f;
+
+  static constexpr int s_conj_grad_max_iter = 1500, s_conj_grad_max_scarce_iter_count = 50;
+  static constexpr float s_conj_grad_step = 0.01, s_conj_grad_accuracy = 0.0000033;
+
+  static constexpr int s_newton_iters = 150, s_newton_max_points = 1e5;
+  static constexpr float s_newton_min_scene_dist_for_self = 0.1, s_newton_min_param_dist_for_self = 0.01,
+          s_newton_min_improvement = 0.001, s_newton_min_step = 0.0001, s_infinity = std::numeric_limits<float>::infinity(), find_dist = 0.05;
 
   IntersectionBuilder() = default;
   ~IntersectionBuilder() = default;

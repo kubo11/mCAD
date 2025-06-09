@@ -914,6 +914,7 @@ bool CadLayer::on_find_intersection_starting_point(FindIntersectionStartingPoint
 
 bool CadLayer::on_find_intersection(FindIntersectionEvent& event) {
   auto [points1, points2] = m_intersection_builder.find(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2), event.starting_point.first, event.starting_point.second, event.newton_factor, event.max_dist, event.rough);
+  if (points1.empty() || points2.empty()) return false;
   auto& entity = create_intersection(m_scene.get_entity(event.s1), m_scene.get_entity(event.s2), points1, points2);
   mge::AddedEntityEvent add_event(entity.get_id());
   mge::SendEvent(add_event);

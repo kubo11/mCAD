@@ -549,9 +549,11 @@ void UILayer::show_find_intersection_window() {
       uv = {-1.0f, -1.0f};
       st = {-1.0f, -1.0f};
     } else {
+      if (m_selection_manager.get_parent_count() == 1) accuracy = 0.01f;
+      else accuracy = 0.00001f;
       if (start_found) {
-        ImGui::Text("uv: (%.02f, %.02f)", uv.x, uv.y);
-        ImGui::Text("st: (%.02f, %.02f)", st.x, st.y);
+        ImGui::Text("uv: (%.04f, %.04f)", uv.x, uv.y);
+        ImGui::Text("st: (%.04f, %.04f)", st.x, st.y);
       }
     }
     // controls

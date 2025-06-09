@@ -19,18 +19,18 @@ std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> IntersectionBuilder::f
   std::vector<glm::vec2> uv_vec = {uv_now};
   std::vector<glm::vec2> st_vec = {st_now};
 
-  glm::vec3 t(0, 0, 0);
-  bool found_first_bound = false;
+  glm::vec3 t(0.0f, 0.0f, 0.0f);
+  bool hit_edge = false;
   while (true) {
     float step = find_dist;
-    float distance_now = infinity;
+    float distance_now = s_infinity;
     glm::vec3 pos_r3 = get_surface_position(s1, uv_newton);
     bool out_of_bounds = false;
     auto g1 = get_surface_gradient(s1, uv_newton);
     auto g2 = get_surface_gradient(s2, st_newton);
     auto t_now = glm::normalize(glm::cross(glm::normalize(glm::cross(g1.first, g1.second)), glm::normalize(glm::cross(g2.first, g2.second))));
 
-    if (found_first_bound) {
+    if (hit_edge) {
       t_now *= -1.0f;
     }
     if (std::abs(glm::dot(glm::normalize(t_now), glm::normalize(t))) > 0.995) {
@@ -40,7 +40,7 @@ std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> IntersectionBuilder::f
       t_now *= -1.0f;
     }
 
-    for (int i = 0; i < find_newton_iters; i++) {
+    for (int i = 0; i < s_newton_iters; ++i) {
       glm::vec3 p = get_surface_position(s1, uv_newton);
       glm::vec3 q = get_surface_position(s2, st_newton);
       auto grad_p = get_surface_gradient(s1, uv_newton);
@@ -53,15 +53,15 @@ std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> IntersectionBuilder::f
         break;
       }
       if (distance_newton > distance_now) {
-        if (step <= find_min_step) {
-          if (found_first_bound) {
+        if (step <= s_newton_min_step) {
+          if (hit_edge) {
             return {uv_vec, st_vec};
           }
-          found_first_bound = true;
+          hit_edge = true;
           break;
         }
         step /= 2;
-        distance_now = infinity;
+        distance_now = s_infinity;
         uv_newton = uv_now;
         st_newton = st_now;
         i = 0;
@@ -80,13 +80,13 @@ std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> IntersectionBuilder::f
       uv_newton = {uvst.x, uvst.y};
       st_newton = {uvst.z, uvst.w};
       out_of_bounds |= !are_parameters_normalized(s1, uv_newton) || !are_parameters_normalized(s2, st_newton);
-      if (out_of_bounds || rough || glm::length(duvst) < find_min_improvement) {
+      if (out_of_bounds || rough || glm::length(duvst) < s_newton_min_improvement) {
         uv_newton = clamp_parameters(s1, uv_newton);
         st_newton = clamp_parameters(s2, st_newton);
         break;
       }
     }
-    if (!found_first_bound) {
+    if (!hit_edge) {
       uv_vec.emplace_back(uv_newton);
       st_vec.emplace_back(st_newton);
     } else {
@@ -94,28 +94,29 @@ std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>> IntersectionBuilder::f
       st_vec.emplace(st_vec.begin(), st_newton);
     }
     if (out_of_bounds || self_intersection && (
-        glm::distance(uv_newton, st_newton) < find_min_uv_st_distance_in_self ||
-        glm::distance(get_surface_position(s1, uv_newton), get_surface_position(s2, st_newton)) > find_max_pq_distance_in_self)) {
-      if (found_first_bound) {
+        glm::distance(uv_newton, st_newton) < s_newton_min_param_dist_for_self ||
+        glm::distance(get_surface_position(s1, uv_newton), get_surface_position(s2, st_newton)) > s_newton_min_scene_dist_for_self)) {
+      if (hit_edge) {
         return {uv_vec, st_vec};
       }
       uv_now = uv_first;
       st_now = st_first;
       uv_newton = uv_first;
       st_newton = st_first;
-      found_first_bound = true;
+      hit_edge = true;
       t = {};
     } else {
       t = t_now;
     }
 
-    if (!found_first_bound && uv_vec.size() > 2 && glm::distance(get_surface_position(s1, uv_vec.front()), get_surface_position(s1, uv_vec.back()))
+    if (!hit_edge && uv_vec.size() > 2 && glm::distance(get_surface_position(s1, uv_vec.front()), get_surface_position(s1, uv_vec.back()))
         < step) {
       return {uv_vec, st_vec};
     }
 
-    if (uv_vec.size() > find_max_points) {
-      throw std::runtime_error("Computations likely looped. Try again.");
+    if (uv_vec.size() > s_newton_max_points) {
+      MGE_ERROR("Unable to find intersection for given parameters.");
+      return {{}, {}};
     }
   }
 }
@@ -135,16 +136,16 @@ glm::vec2 IntersectionBuilder::get_closest_point_on_surface(mge::Entity& s, cons
   glm::vec2 best(0.5, 0.5);
   float best_dist = glm::distance(get_surface_position(s, best), p);
 
-  for (int i = 0; i < subd_outer; i++) {
+  for (int i = 0; i < s_surface_subdivision_count; i++) {
     glm::vec2 start = best - delta;
     delta *= 2;
-    delta /= subd_inner;
-    for (int x = 0; x < subd_inner; x++) {
+    delta /= s_surface_subdivision_resolution;
+    for (int x = 0; x < s_surface_subdivision_resolution; x++) {
       float u = start.x + delta.x * x;
       if (u < 0 || u > 1) {
         continue;
       }
-      for (int y = 0; y < subd_inner; y++) {
+      for (int y = 0; y < s_surface_subdivision_resolution; y++) {
         float v = start.y + delta.y * y;
         if (v < 0 || v > 1) {
           continue;
@@ -155,7 +156,7 @@ glm::vec2 IntersectionBuilder::get_closest_point_on_surface(mge::Entity& s, cons
         if (dist < best_dist) {
           best_dist = dist;
           best = uv;
-          if (best_dist < subd_accuracy) {
+          if (best_dist < s_surface_closest_point_accuracy) {
             return best;
           }
         };
@@ -171,27 +172,31 @@ glm::vec2 IntersectionBuilder::get_closest_point_on_surface_with_penalty(mge::En
   glm::vec2 best(0.5, 0.5);
   float best_dist = glm::distance(get_surface_position(s, best), p) + penalty_function(best, penalizing_point);
 
-  for (int i = 0; i < subd_outer; i++) {
+  for (int i = 0; i < s_surface_subdivision_count; i++) {
     glm::vec2 start = best - delta;
     delta *= 2;
-    delta /= subd_inner;
-    for (int x = 0; x < subd_inner; x++) {
+    delta /= s_surface_subdivision_resolution;
+    for (int x = 0; x < s_surface_subdivision_resolution; x++) {
       float u = start.x + delta.x * x;
       if (u < 0 || u > 1) {
           continue;
       }
-      for (int y = 0; y < subd_inner; y++) {
+      for (int y = 0; y < s_surface_subdivision_resolution; y++) {
         float v = start.y + delta.y * y;
         if (v < 0 || v > 1) {
           continue;
         }
         glm::vec2 uv = normalize_parametrization(s, {u, v});
 
+        if (glm::distance(uv, penalizing_point) < s_min_parameter_dist) continue;
+        if (glm::distance(uv.x, penalizing_point.x) < s_min_parameter_dist) continue;
+        if (glm::distance(uv.y, penalizing_point.y) < s_min_parameter_dist) continue;
+
         float dist = glm::distance(get_surface_position(s, uv), p) + penalty_function(uv, penalizing_point);
         if (dist < best_dist) {
           best_dist = dist;
           best = uv;
-          if (best_dist < subd_accuracy) {
+          if (best_dist < s_surface_closest_point_accuracy) {
             return best;
           }
         };
@@ -204,36 +209,36 @@ glm::vec2 IntersectionBuilder::get_closest_point_on_surface_with_penalty(mge::En
 
 std::pair<glm::vec2, glm::vec2> IntersectionBuilder::conjugate_gradient(mge::Entity& s1, mge::Entity& s2, glm::vec2 uv, glm::vec2 st) {
   float dist = glm::distance(get_surface_position(s1, uv), get_surface_position(s2, st));
-  float step = conj_grad_step;
-  int iters_without_much_improvement = 0;
+  float step = s_conj_grad_step;
+  int scarce_iter_count = 0;
 
-  for (int iter = 0; iter < conj_grad_max_iter; iter++) {
-      auto [grad_uv, grad_st] = get_gradients(s1, s2, uv, st);
-      auto uv_new = uv - step * grad_uv;
-      auto st_new = st - step * grad_st;
-      float dist_new = glm::distance(get_surface_position(s1, uv_new), get_surface_position(s2, st_new));
+  for (int iter = 0; iter < s_conj_grad_max_iter; ++iter) {
+    auto [grad_uv, grad_st] = get_gradients(s1, s2, uv, st);
+    auto uv_new = uv - step * grad_uv;
+    auto st_new = st - step * grad_st;
+    float dist_new = glm::distance(get_surface_position(s1, uv_new), get_surface_position(s2, st_new));
 
-      if (glm::distance(uv_new, uv) + glm::distance(st_new, st) < conj_grad_accuracy &&
-          std::abs(dist - dist_new) < conj_grad_accuracy) {
-          iters_without_much_improvement += 1;
-          if (iters_without_much_improvement > conj_grad_max_iter_slow_error_change) {
-              return {uv, st};
-          }
-      } else {
-          iters_without_much_improvement = 0;
+    if (glm::distance(uv_new, uv) + glm::distance(st_new, st) < s_conj_grad_accuracy &&
+      std::abs(dist - dist_new) < s_conj_grad_accuracy) {
+      scarce_iter_count += 1;
+      if (scarce_iter_count > s_conj_grad_max_scarce_iter_count) {
+        return {uv, st};
       }
+    } else {
+      scarce_iter_count = 0;
+    }
 
-      if (dist_new < conj_grad_accuracy / 4) {
-          return {uv_new, st_new};
-      }
-      if (dist_new < dist) {
-          step = conj_grad_step;
-          dist = dist_new;
-          uv = uv_new;
-          st = st_new;
-      } else {
-          step *= 0.5f;
-      }
+    if (dist_new < s_conj_grad_accuracy / 4) {
+      return {uv_new, st_new};
+    }
+    if (dist_new < dist) {
+      step = s_conj_grad_step;
+      dist = dist_new;
+      uv = uv_new;
+      st = st_new;
+    } else {
+      step *= 0.5f;
+    }
   }
 
   return {uv, st};
@@ -270,7 +275,7 @@ std::pair<glm::vec3, glm::vec3> IntersectionBuilder::get_surface_gradient(mge::E
 }
 
 float IntersectionBuilder::penalty_function(glm::vec2 uv, glm::vec2 st) {
-  return std::fmax(0.0f, (1 - glm::distance(uv, st) / same_penalty_len) * same_penalty_max);
+  return std::fmax(0.0f, (1 - glm::distance(uv, st) / s_penalty_length) * s_max_penalty);
 }
 
 glm::vec2 IntersectionBuilder::normalize_parametrization(mge::Entity& s, glm::vec2 uv) {
